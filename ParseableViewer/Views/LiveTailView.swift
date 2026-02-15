@@ -7,6 +7,7 @@ struct LiveTailView: View {
     @State private var autoScroll = true
     @State private var pulseOpacity: Double = 1.0
     @State private var showColumnPopover = false
+    @State private var wrapText = false
     @State private var sortColumn: String?
     @State private var sortAscending = false
     @State private var columnWidths: [String: CGFloat] = [:]
@@ -69,6 +70,14 @@ struct LiveTailView: View {
                             .frame(width: 200)
                             .accessibilityLabel("Filter live tail entries")
                     }
+
+                    Button {
+                        wrapText.toggle()
+                    } label: {
+                        Image(systemName: wrapText ? "text.word.spacing" : "text.line.first.and.arrowtriangle.forward")
+                    }
+                    .help(wrapText ? "Disable text wrapping" : "Enable text wrapping")
+                    .accessibilityLabel(wrapText ? "Disable text wrapping" : "Enable text wrapping")
 
                     if !viewModel.columns.isEmpty {
                         Button {
@@ -283,6 +292,7 @@ struct LiveTailView: View {
                                 columnWidths: columnWidths,
                                 isSelected: selectedRecord == sorted[index].record,
                                 isAlternate: index % 2 == 1,
+                                wrapText: wrapText,
                                 onCellFilter: { column, value, exclude in
                                     viewModel.addColumnFilter(column: column, value: value, exclude: exclude)
                                 }

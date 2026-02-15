@@ -8,6 +8,7 @@ struct QueryView: View {
     @State private var exportError: String?
     @State private var showExportError = false
     @State private var showColumnPopover = false
+    @State private var wrapText = false
 
     var body: some View {
         @Bindable var vm = viewModel
@@ -192,6 +193,14 @@ struct QueryView: View {
 
                         Spacer()
 
+                        Button {
+                            wrapText.toggle()
+                        } label: {
+                            Image(systemName: wrapText ? "text.word.spacing" : "text.line.first.and.arrowtriangle.forward")
+                        }
+                        .help(wrapText ? "Disable text wrapping" : "Enable text wrapping")
+                        .accessibilityLabel(wrapText ? "Disable text wrapping" : "Enable text wrapping")
+
                         if !viewModel.columns.isEmpty {
                             Button {
                                 showColumnPopover.toggle()
@@ -223,6 +232,7 @@ struct QueryView: View {
                     columns: viewModel.visibleColumns,
                     selectedRecord: $vm.selectedLogEntry,
                     isLoading: viewModel.isLoading,
+                    wrapText: wrapText,
                     onCellFilter: { column, value, exclude in
                         viewModel.addColumnFilter(column: column, value: value, exclude: exclude)
                         Task {

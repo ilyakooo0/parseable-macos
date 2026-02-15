@@ -149,6 +149,7 @@ struct LogTableView: View {
     let columns: [String]
     @Binding var selectedRecord: LogRecord?
     var isLoading: Bool = false
+    var wrapText: Bool = false
     var onCellFilter: ((_ column: String, _ value: JSONValue?, _ exclude: Bool) -> Void)?
     var onMoveColumn: ((String, String) -> Void)?
     @State private var sortColumn: String?
@@ -188,6 +189,7 @@ struct LogTableView: View {
                                     columnWidths: columnWidths,
                                     isSelected: selectedIndex == index,
                                     isAlternate: index % 2 == 1,
+                                    wrapText: wrapText,
                                     onCellFilter: onCellFilter
                                 )
                                 .onTapGesture {
@@ -529,18 +531,19 @@ struct LogRowView: View {
     let columnWidths: [String: CGFloat]
     let isSelected: Bool
     let isAlternate: Bool
+    var wrapText: Bool = false
     var onCellFilter: ((_ column: String, _ value: JSONValue?, _ exclude: Bool) -> Void)?
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(alignment: .top, spacing: 0) {
             ForEach(columns, id: \.self) { column in
                 let value = record[column]
                 Text(value?.displayString ?? "")
                     .font(.system(.caption, design: .monospaced))
-                    .lineLimit(1)
+                    .lineLimit(wrapText ? nil : 1)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
-                    .frame(width: columnWidths[column] ?? 120, alignment: .leading)
+                    .frame(width: columnWidths[column] ?? 120, alignment: .topLeading)
                     .foregroundStyle(colorForValue(column: column, value: value))
                     .contextMenu {
                         Button("Copy Value") {
