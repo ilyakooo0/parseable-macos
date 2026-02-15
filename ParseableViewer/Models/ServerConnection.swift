@@ -39,12 +39,16 @@ struct ServerConnection: Identifiable, Codable, Hashable {
 
     var baseURL: URL? {
         var urlString = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        if urlString.isEmpty { return nil }
         if !urlString.hasPrefix("http://") && !urlString.hasPrefix("https://") {
             urlString = "https://\(urlString)"
         }
         while urlString.hasSuffix("/") {
             urlString.removeLast()
         }
-        return URL(string: urlString)
+        guard let parsed = URL(string: urlString), parsed.host != nil else {
+            return nil
+        }
+        return parsed
     }
 }
