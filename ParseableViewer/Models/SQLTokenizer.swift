@@ -1,5 +1,27 @@
 import Foundation
 
+/// Parsed line/column position from a DataFusion error message.
+struct SQLErrorPosition: Equatable, Sendable {
+    let line: Int   // 1-based
+    let column: Int // 1-based
+
+    /// Parses a position from a DataFusion error string such as
+    /// `"Expected: an expression, found: FROM at Line: 1, Column 15"`.
+    static func parse(from message: String) -> SQLErrorPosition? {
+        // DataFusion sometimes includes a colon after "Column" and sometimes doesn't
+        let pattern = #"Line:\s*(\d+),\s*Column:?\s*(\d+)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: message, range: NSRange(message.startIndex..., in: message)),
+              let lineRange = Range(match.range(at: 1), in: message),
+              let colRange = Range(match.range(at: 2), in: message),
+              let line = Int(message[lineRange]),
+              let col = Int(message[colRange]) else {
+            return nil
+        }
+        return SQLErrorPosition(line: line, column: col)
+    }
+}
+
 /// A minimal SQL tokenizer and parser for rewriting SELECT column lists.
 struct SQLTokenizer: Sendable {
 
@@ -243,5 +265,70 @@ struct SQLTokenizer: Sendable {
             }
             advance(&i, in: sql, while: { $0.isNumber })
         }
+    }
+
+    // MARK: - Error position helpers
+
+    /// Converts a 1-based line/column into a UTF-16 offset within `sql`.
+    /// Returns `nil` if the position is out of bounds.
+    static func characterOffset(line: Int, column: Int, in sql: String) -> Int? {
+        guard line >= 1, column >= 1 else { return nil }
+        let nsString = sql as NSString
+        let length = nsString.length
+
+        // Walk to the start of the target line
+        var currentLine = 1
+        var i = 0
+        while currentLine < line {
+            guard i < length else { return nil }
+            if nsString.character(at: i) == 0x0A { // \n
+                currentLine += 1
+            }
+            i += 1
+        }
+
+        let offset = i + (column - 1)
+        guard offset <= length else { return nil }
+        return offset
+    }
+
+    /// Returns the `NSRange` of the token at the given UTF-16 offset.
+    /// If the offset falls on whitespace/trivia, snaps to the next non-trivia token.
+    static func tokenRange(atOffset offset: Int, in sql: String) -> NSRange? {
+        let tokens = tokenize(sql)
+        let nsString = sql as NSString
+
+        // Convert token Swift ranges to NSRanges for comparison
+        for (idx, token) in tokens.enumerated() {
+            let nsRange = NSRange(token.range, in: sql)
+            if offset >= nsRange.location && offset < nsRange.location + nsRange.length {
+                if token.kind.isTrivia {
+                    // Snap to the next non-trivia token
+                    for next in tokens[(idx + 1)...] {
+                        if !next.kind.isTrivia {
+                            return NSRange(next.range, in: sql)
+                        }
+                    }
+                    return nil
+                }
+                return nsRange
+            }
+        }
+
+        // Offset is at or past end — return last non-trivia token
+        if offset >= nsString.length {
+            for token in tokens.reversed() {
+                if !token.kind.isTrivia {
+                    return NSRange(token.range, in: sql)
+                }
+            }
+        }
+        return nil
+    }
+
+    /// Convenience: parses a line/column into an `NSRange` for the enclosing token.
+    static func errorHighlightRange(line: Int, column: Int, in sql: String) -> NSRange? {
+        guard let offset = characterOffset(line: line, column: column, in: sql) else { return nil }
+        return tokenRange(atOffset: offset, in: sql)
     }
 }
