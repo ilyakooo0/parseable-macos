@@ -51,6 +51,8 @@ enum ParseableError: LocalizedError {
                 return "Connection timed out. The server may be unreachable."
             case NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateUntrusted:
                 return "SSL/TLS error. The server certificate may be invalid or untrusted."
+            case NSURLErrorCancelled:
+                return "Request cancelled"
             default:
                 return "Network error: \(error.localizedDescription)"
             }
