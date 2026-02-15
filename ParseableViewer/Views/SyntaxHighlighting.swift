@@ -44,6 +44,24 @@ enum SQLSyntaxHighlighter {
         "UPPER",
     ]
 
+    // Pre-sorted arrays for completions
+    static let sortedKeywords: [String] = keywords.sorted()
+    static let sortedFunctions: [String] = functions.sorted()
+
+    // Pre-compiled regexes (created once, reused every keystroke)
+    private static let commentRegex = try! NSRegularExpression(pattern: "--[^\n]*", options: [.caseInsensitive])
+    private static let singleQuoteRegex = try! NSRegularExpression(pattern: "'[^']*(?:''[^']*)*'", options: [.caseInsensitive])
+    private static let doubleQuoteRegex = try! NSRegularExpression(pattern: "\"[^\"]*(?:\"\"[^\"]*)*\"", options: [.caseInsensitive])
+    private static let numberRegex = try! NSRegularExpression(pattern: "\\b\\d+(?:\\.\\d+)?\\b", options: [])
+    private static let keywordRegex: NSRegularExpression = {
+        let pattern = "\\b(?:" + sortedKeywords.joined(separator: "|") + ")\\b"
+        return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    }()
+    private static let functionRegex: NSRegularExpression = {
+        let pattern = "\\b(?:" + sortedFunctions.joined(separator: "|") + ")\\b"
+        return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    }()
+
     /// Applies SQL syntax highlighting to an NSTextStorage.
     static func highlight(_ text: String, in textStorage: NSTextStorage, baseFont: NSFont) {
         let fullRange = NSRange(location: 0, length: textStorage.length)
@@ -59,42 +77,39 @@ enum SQLSyntaxHighlighter {
         var protectedRanges: [NSRange] = []
 
         // 1. Comments (-- to end of line)
-        applyPattern("--[^\n]*", to: textStorage, text: nsText,
-                     color: .secondaryLabelColor, protectedRanges: &protectedRanges)
+        applyRegex(commentRegex, to: textStorage, text: nsText,
+                   color: .secondaryLabelColor, protectedRanges: &protectedRanges)
 
         // 2. Single-quoted strings
-        applyPattern("'[^']*(?:''[^']*)*'", to: textStorage, text: nsText,
-                     color: .systemRed, protectedRanges: &protectedRanges)
+        applyRegex(singleQuoteRegex, to: textStorage, text: nsText,
+                   color: .systemRed, protectedRanges: &protectedRanges)
 
         // 3. Double-quoted identifiers
-        applyPattern("\"[^\"]*(?:\"\"[^\"]*)*\"", to: textStorage, text: nsText,
-                     color: .systemRed, protectedRanges: &protectedRanges)
+        applyRegex(doubleQuoteRegex, to: textStorage, text: nsText,
+                   color: .systemRed, protectedRanges: &protectedRanges)
 
         // 4. Numbers (outside protected ranges)
-        applyUnprotectedPattern("\\b\\d+(?:\\.\\d+)?\\b", to: textStorage, text: nsText,
-                               color: .systemPurple, protectedRanges: protectedRanges)
+        applyUnprotectedRegex(numberRegex, to: textStorage, text: nsText,
+                              color: .systemPurple, protectedRanges: protectedRanges)
 
         // 5. Keywords (outside protected ranges)
-        let keywordPattern = "\\b(?:" + keywords.sorted().joined(separator: "|") + ")\\b"
-        applyUnprotectedKeywordPattern(keywordPattern, to: textStorage, text: nsText,
-                                       color: .systemBlue, bold: true, baseFont: baseFont,
-                                       protectedRanges: protectedRanges)
+        applyUnprotectedKeywordRegex(keywordRegex, to: textStorage, text: nsText,
+                                     color: .systemBlue, bold: true, baseFont: baseFont,
+                                     protectedRanges: protectedRanges)
 
         // 6. Functions (outside protected ranges)
-        let functionPattern = "\\b(?:" + functions.sorted().joined(separator: "|") + ")\\b"
-        applyUnprotectedKeywordPattern(functionPattern, to: textStorage, text: nsText,
-                                       color: .systemTeal, bold: false, baseFont: baseFont,
-                                       protectedRanges: protectedRanges)
+        applyUnprotectedKeywordRegex(functionRegex, to: textStorage, text: nsText,
+                                     color: .systemTeal, bold: false, baseFont: baseFont,
+                                     protectedRanges: protectedRanges)
     }
 
-    private static func applyPattern(
-        _ pattern: String,
+    private static func applyRegex(
+        _ regex: NSRegularExpression,
         to textStorage: NSTextStorage,
         text: NSString,
         color: NSColor,
         protectedRanges: inout [NSRange]
     ) {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return }
         let matches = regex.matches(in: text as String, range: NSRange(location: 0, length: text.length))
         for match in matches {
             textStorage.addAttribute(.foregroundColor, value: color, range: match.range)
@@ -102,22 +117,21 @@ enum SQLSyntaxHighlighter {
         }
     }
 
-    private static func applyUnprotectedPattern(
-        _ pattern: String,
+    private static func applyUnprotectedRegex(
+        _ regex: NSRegularExpression,
         to textStorage: NSTextStorage,
         text: NSString,
         color: NSColor,
         protectedRanges: [NSRange]
     ) {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return }
         let matches = regex.matches(in: text as String, range: NSRange(location: 0, length: text.length))
         for match in matches where !isProtected(match.range, by: protectedRanges) {
             textStorage.addAttribute(.foregroundColor, value: color, range: match.range)
         }
     }
 
-    private static func applyUnprotectedKeywordPattern(
-        _ pattern: String,
+    private static func applyUnprotectedKeywordRegex(
+        _ regex: NSRegularExpression,
         to textStorage: NSTextStorage,
         text: NSString,
         color: NSColor,
@@ -125,7 +139,6 @@ enum SQLSyntaxHighlighter {
         baseFont: NSFont,
         protectedRanges: [NSRange]
     ) {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return }
         let boldFont = NSFont.monospacedSystemFont(ofSize: baseFont.pointSize, weight: .bold)
         let matches = regex.matches(in: text as String, range: NSRange(location: 0, length: text.length))
         for match in matches where !isProtected(match.range, by: protectedRanges) {
@@ -151,6 +164,12 @@ enum SQLSyntaxHighlighter {
 
 enum JSONSyntaxHighlighter {
 
+    // Pre-compiled regexes (created once, reused every call)
+    private static let stringRegex = try! NSRegularExpression(pattern: "\"(?:[^\"\\\\]|\\\\.)*\"", options: [])
+    private static let boolRegex = try! NSRegularExpression(pattern: "\\b(true|false)\\b", options: [])
+    private static let nullRegex = try! NSRegularExpression(pattern: "\\bnull\\b", options: [])
+    private static let numberRegex = try! NSRegularExpression(pattern: "-?\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b", options: [])
+
     /// Creates a syntax-highlighted AttributedString from a JSON string.
     static func highlight(_ json: String, font: NSFont? = nil) -> AttributedString {
         let resolvedFont = font ?? NSFont.monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
@@ -168,45 +187,37 @@ enum JSONSyntaxHighlighter {
         var stringRanges: [NSRange] = []
 
         // 1. Double-quoted strings — distinguish keys from values
-        if let regex = try? NSRegularExpression(pattern: "\"(?:[^\"\\\\]|\\\\.)*\"", options: []) {
-            let matches = regex.matches(in: json, range: fullRange)
-            for match in matches {
-                stringRanges.append(match.range)
+        let matches = stringRegex.matches(in: json, range: fullRange)
+        for match in matches {
+            stringRanges.append(match.range)
 
-                let isKey = isJSONKey(after: match.range, in: nsString)
-                let color: NSColor = isKey ? .systemCyan : .systemRed
-                attributed.addAttribute(.foregroundColor, value: color, range: match.range)
-                if isKey {
-                    attributed.addAttribute(
-                        .font,
-                        value: NSFont.monospacedSystemFont(ofSize: resolvedFont.pointSize, weight: .medium),
-                        range: match.range)
-                }
+            let isKey = isJSONKey(after: match.range, in: nsString)
+            let color: NSColor = isKey ? .systemCyan : .systemRed
+            attributed.addAttribute(.foregroundColor, value: color, range: match.range)
+            if isKey {
+                attributed.addAttribute(
+                    .font,
+                    value: NSFont.monospacedSystemFont(ofSize: resolvedFont.pointSize, weight: .medium),
+                    range: match.range)
             }
         }
 
         // 2. Booleans (outside strings)
-        if let regex = try? NSRegularExpression(pattern: "\\b(true|false)\\b", options: []) {
-            for match in regex.matches(in: json, range: fullRange)
-                where !isInString(match.range, stringRanges: stringRanges) {
-                attributed.addAttribute(.foregroundColor, value: NSColor.systemOrange, range: match.range)
-            }
+        for match in boolRegex.matches(in: json, range: fullRange)
+            where !isInString(match.range, stringRanges: stringRanges) {
+            attributed.addAttribute(.foregroundColor, value: NSColor.systemOrange, range: match.range)
         }
 
         // 3. Null (outside strings)
-        if let regex = try? NSRegularExpression(pattern: "\\bnull\\b", options: []) {
-            for match in regex.matches(in: json, range: fullRange)
-                where !isInString(match.range, stringRanges: stringRanges) {
-                attributed.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: match.range)
-            }
+        for match in nullRegex.matches(in: json, range: fullRange)
+            where !isInString(match.range, stringRanges: stringRanges) {
+            attributed.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: match.range)
         }
 
         // 4. Numbers (outside strings)
-        if let regex = try? NSRegularExpression(pattern: "-?\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b", options: []) {
-            for match in regex.matches(in: json, range: fullRange)
-                where !isInString(match.range, stringRanges: stringRanges) {
-                attributed.addAttribute(.foregroundColor, value: NSColor.systemPurple, range: match.range)
-            }
+        for match in numberRegex.matches(in: json, range: fullRange)
+            where !isInString(match.range, stringRanges: stringRanges) {
+            attributed.addAttribute(.foregroundColor, value: NSColor.systemPurple, range: match.range)
         }
 
         return AttributedString(attributed)

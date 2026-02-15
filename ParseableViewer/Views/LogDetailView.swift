@@ -87,8 +87,9 @@ struct FormattedRecordView: View {
     }
 
     var body: some View {
+        let keys = sortedKeys
         VStack(alignment: .leading, spacing: 1) {
-            ForEach(sortedKeys, id: \.self) { key in
+            ForEach(Array(keys.enumerated()), id: \.element) { index, key in
                 HStack(alignment: .top, spacing: 8) {
                     Text(key)
                         .font(.system(.caption, design: .monospaced))
@@ -105,8 +106,7 @@ struct FormattedRecordView: View {
                 .padding(.vertical, 3)
                 .padding(.horizontal, 8)
                 .background(
-                    sortedKeys.firstIndex(of: key).map { $0 % 2 == 1 }
-                        ?? false ? Color.primary.opacity(0.03) : Color.clear
+                    index % 2 == 1 ? Color.primary.opacity(0.03) : Color.clear
                 )
             }
         }
@@ -185,12 +185,23 @@ struct JSONValueView: View {
 
 struct RawJSONView: View {
     let record: LogRecord
+    @State private var highlightedText: AttributedString?
 
     var body: some View {
-        let json = JSONValue.object(record).prettyPrinted()
-        Text(JSONSyntaxHighlighter.highlight(json))
-            .textSelection(.enabled)
-            .padding(8)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        Group {
+            if let highlighted = highlightedText {
+                Text(highlighted)
+            } else {
+                Text(JSONValue.object(record).prettyPrinted())
+                    .font(.system(.caption, design: .monospaced))
+            }
+        }
+        .textSelection(.enabled)
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .task(id: record) {
+            let json = JSONValue.object(record).prettyPrinted()
+            highlightedText = JSONSyntaxHighlighter.highlight(json)
+        }
     }
 }
