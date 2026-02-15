@@ -284,6 +284,43 @@ final class QueryViewModel {
         resultsTruncated = false
     }
 
+    /// Modifies `sqlQuery` to add a column-value filter condition.
+    /// When `exclude` is true, the condition excludes the value; otherwise it includes only matching rows.
+    func addColumnFilter(column: String, value: JSONValue?, exclude: Bool) {
+        let escapedCol = Self.escapeSQLIdentifier(column)
+        let condition: String
+        if let value, value != .null {
+            let literal = value.sqlLiteral
+            condition = exclude ? "\(escapedCol) <> \(literal)" : "\(escapedCol) = \(literal)"
+        } else {
+            condition = exclude ? "\(escapedCol) IS NOT NULL" : "\(escapedCol) IS NULL"
+        }
+
+        var sql = sqlQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if sql.isEmpty { return }
+
+        let wherePattern = #"(?i)\bWHERE\b"#
+        let tailPattern = #"(?i)\b(ORDER\s+BY|GROUP\s+BY|HAVING|LIMIT)\b"#
+
+        if let whereRange = sql.range(of: wherePattern, options: .regularExpression) {
+            let afterWhere = whereRange.upperBound
+            let searchRange = afterWhere..<sql.endIndex
+            if let tailRange = sql.range(of: tailPattern, options: .regularExpression, range: searchRange) {
+                sql.insert(contentsOf: "AND \(condition) ", at: tailRange.lowerBound)
+            } else {
+                sql += " AND \(condition)"
+            }
+        } else {
+            if let tailRange = sql.range(of: tailPattern, options: .regularExpression) {
+                sql.insert(contentsOf: "WHERE \(condition) ", at: tailRange.lowerBound)
+            } else {
+                sql += " WHERE \(condition)"
+            }
+        }
+
+        sqlQuery = sql
+    }
+
     /// Sets the default query for the given stream, returning `true` if the
     /// query text was replaced (i.e. the user hadn't customized it).
     @discardableResult

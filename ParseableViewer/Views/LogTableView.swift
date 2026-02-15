@@ -53,6 +53,7 @@ struct LogTableView: View {
     let records: [LogRecord]
     let columns: [String]
     @Binding var selectedRecord: LogRecord?
+    var onCellFilter: ((_ column: String, _ value: JSONValue?, _ exclude: Bool) -> Void)?
     @State private var sortColumn: String?
     @State private var sortAscending = false
     @State private var selectedIndex: Int?
@@ -81,7 +82,8 @@ struct LogTableView: View {
                                     columns: columns,
                                     columnWidths: columnWidths,
                                     isSelected: selectedIndex == index,
-                                    isAlternate: index % 2 == 1
+                                    isAlternate: index % 2 == 1,
+                                    onCellFilter: onCellFilter
                                 )
                                 .onTapGesture {
                                     selectedIndex = index
@@ -258,6 +260,7 @@ struct LogRowView: View {
     let columnWidths: [String: CGFloat]
     let isSelected: Bool
     let isAlternate: Bool
+    var onCellFilter: ((_ column: String, _ value: JSONValue?, _ exclude: Bool) -> Void)?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -279,6 +282,15 @@ struct LogRowView: View {
                         Button("Copy Column Name") {
                             NSPasteboard.general.clearContents()
                             _ = NSPasteboard.general.setString(column, forType: .string)
+                        }
+                        if let onCellFilter {
+                            Divider()
+                            Button("Filter by This Value") {
+                                onCellFilter(column, value, false)
+                            }
+                            Button("Exclude This Value") {
+                                onCellFilter(column, value, true)
+                            }
                         }
                     }
             }

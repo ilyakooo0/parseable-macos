@@ -190,7 +190,16 @@ struct QueryView: View {
                 LogTableView(
                     records: viewModel.filteredResults,
                     columns: viewModel.columns,
-                    selectedRecord: $vm.selectedLogEntry
+                    selectedRecord: $vm.selectedLogEntry,
+                    onCellFilter: { column, value, exclude in
+                        viewModel.addColumnFilter(column: column, value: value, exclude: exclude)
+                        Task {
+                            await viewModel.executeQuery(
+                                client: appState.client,
+                                stream: appState.selectedStream
+                            )
+                        }
+                    }
                 )
             }
         }
