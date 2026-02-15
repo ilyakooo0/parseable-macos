@@ -13,6 +13,10 @@ struct ParseableViewerApp: App {
         .windowStyle(.titleBar)
         .defaultSize(width: 1200, height: 800)
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                AboutCommand()
+            }
+
             CommandGroup(after: .newItem) {
                 Button("New Connection...") {
                     appState.editingConnection = nil
@@ -47,9 +51,25 @@ struct ParseableViewerApp: App {
             }
         }
 
+        Window("About Parseable Viewer", id: "about") {
+            AboutView()
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+
         Settings {
             SettingsView()
                 .environment(appState)
+        }
+    }
+}
+
+private struct AboutCommand: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("About Parseable Viewer") {
+            openWindow(id: "about")
         }
     }
 }
