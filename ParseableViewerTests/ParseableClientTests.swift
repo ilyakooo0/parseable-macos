@@ -454,4 +454,13 @@ final class ParseableClientTests: XCTestCase {
         let lines = csv.components(separatedBy: "\n")
         XCTAssertTrue(lines[1].hasSuffix(",") || lines[1].components(separatedBy: ",").count == 2)
     }
+
+    func testBuildCSVEscapesCarriageReturn() {
+        let records: [LogRecord] = [
+            ["msg": .string("line1\r\nline2")]
+        ]
+        let csv = QueryViewModel.buildCSV(records: records, columns: ["msg"])
+        // Carriage returns in values should be wrapped in quotes per RFC 4180
+        XCTAssertTrue(csv.contains("\"line1\r\nline2\""))
+    }
 }

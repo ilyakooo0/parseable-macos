@@ -174,11 +174,11 @@ struct LogRowView: View {
                         Button("Copy Value") {
                             let text = value?.displayString ?? ""
                             NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(text, forType: .string)
+                            _ = NSPasteboard.general.setString(text, forType: .string)
                         }
                         Button("Copy Column Name") {
                             NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(column, forType: .string)
+                            _ = NSPasteboard.general.setString(column, forType: .string)
                         }
                     }
             }
