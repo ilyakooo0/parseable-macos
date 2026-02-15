@@ -1,0 +1,158 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [master, main]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  build:
+    runs-on: macos-15
+    strategy:
+      matrix:
+        include:
+          - arch: arm64
+            sdk: macosx
+          - arch: x86_64
+            sdk: macosx
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 16
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Run Tests
+        if: matrix.arch == 'arm64'
+        run: |
+          xcodebuild test \
+            -project ParseableViewer.xcodeproj \
+            -scheme ParseableViewer \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Build
+        run: |
+          xcodebuild \
+            -project ParseableViewer.xcodeproj \
+            -scheme ParseableViewer \
+            -configuration Release \
+            -arch ${{ matrix.arch }} \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package app
+        run: |
+          APP_PATH="build/Build/Products/Release/Parseable Viewer.app"
+          if [ -d "$APP_PATH" ]; then
+            cd build/Build/Products/Release
+            zip -r -y "ParseableViewer-${{ matrix.arch }}.zip" "Parseable Viewer.app"
+            mv "ParseableViewer-${{ matrix.arch }}.zip" "$GITHUB_WORKSPACE/"
+          else
+            echo "App not found at expected path, searching..."
+            find build -name "*.app" -type d
+            exit 1
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ParseableViewer-${{ matrix.arch }}
+          path: ParseableViewer-${{ matrix.arch }}.zip
+
+  create-universal:
+    needs: build
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download arm64 build
+        uses: actions/download-artifact@v4
+        with:
+          name: ParseableViewer-arm64
+          path: artifacts/arm64
+
+      - name: Download x86_64 build
+        uses: actions/download-artifact@v4
+        with:
+          name: ParseableViewer-x86_64
+          path: artifacts/x86_64
+
+      - name: Create Universal Binary
+        run: |
+          # Unzip both architectures
+          mkdir -p arm64_app x86_64_app universal_app
+          cd artifacts/arm64 && unzip ParseableViewer-arm64.zip -d ../../arm64_app && cd ../..
+          cd artifacts/x86_64 && unzip ParseableViewer-x86_64.zip -d ../../x86_64_app && cd ../..
+
+          # Copy the arm64 app as base
+          cp -R "arm64_app/Parseable Viewer.app" "universal_app/Parseable Viewer.app"
+
+          # Find the main executable name
+          EXEC_NAME="Parseable Viewer"
+          ARM64_EXEC="arm64_app/Parseable Viewer.app/Contents/MacOS/$EXEC_NAME"
+          X86_EXEC="x86_64_app/Parseable Viewer.app/Contents/MacOS/$EXEC_NAME"
+          UNIVERSAL_EXEC="universal_app/Parseable Viewer.app/Contents/MacOS/$EXEC_NAME"
+
+          if [ -f "$ARM64_EXEC" ] && [ -f "$X86_EXEC" ]; then
+            lipo -create "$ARM64_EXEC" "$X86_EXEC" -output "$UNIVERSAL_EXEC"
+            echo "Created universal binary"
+            lipo -info "$UNIVERSAL_EXEC"
+          else
+            echo "Error: Could not find executables for universal binary"
+            echo "arm64: $(ls -la arm64_app/Parseable\ Viewer.app/Contents/MacOS/ 2>/dev/null || echo 'not found')"
+            echo "x86_64: $(ls -la x86_64_app/Parseable\ Viewer.app/Contents/MacOS/ 2>/dev/null || echo 'not found')"
+            exit 1
+          fi
+
+          # Create zip
+          cd universal_app
+          zip -r -y "../ParseableViewer-universal.zip" "Parseable Viewer.app"
+
+      - name: Upload universal artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ParseableViewer-universal
+          path: ParseableViewer-universal.zip
+
+  release:
+    needs: create-universal
+    runs-on: macos-15
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Draft Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            artifacts/ParseableViewer-arm64/ParseableViewer-arm64.zip
+            artifacts/ParseableViewer-x86_64/ParseableViewer-x86_64.zip
+            artifacts/ParseableViewer-universal/ParseableViewer-universal.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
