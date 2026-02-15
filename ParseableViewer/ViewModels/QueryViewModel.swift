@@ -136,17 +136,20 @@ final class QueryViewModel {
             }
         }
         saveColumnConfig()
+        updateSQLColumns()
     }
 
     func showAllColumns() {
         hiddenColumns.removeAll()
         autoHiddenColumns.removeAll()
         saveColumnConfig()
+        updateSQLColumns()
     }
 
     func moveColumn(from source: IndexSet, to destination: Int) {
         columnOrder.move(fromOffsets: source, toOffset: destination)
         saveColumnConfig()
+        updateSQLColumns()
     }
 
     func moveColumn(_ column: String, to targetColumn: String) {
@@ -156,6 +159,7 @@ final class QueryViewModel {
         let item = columnOrder.remove(at: fromIndex)
         columnOrder.insert(item, at: toIndex)
         saveColumnConfig()
+        updateSQLColumns()
     }
 
     func resetColumnConfig() {
@@ -163,6 +167,24 @@ final class QueryViewModel {
         hiddenColumns.removeAll()
         autoHiddenColumns.removeAll()
         saveColumnConfig()
+        updateSQLColumns()
+    }
+
+    /// Rewrites the SELECT clause of `sqlQuery` to reflect the current `visibleColumns`.
+    func updateSQLColumns() {
+        guard let range = SQLTokenizer.selectColumnListRange(in: sqlQuery) else { return }
+
+        let visible = visibleColumns
+        guard !visible.isEmpty else { return }
+
+        let newColumnList: String
+        if visible == columns {
+            newColumnList = "*"
+        } else {
+            newColumnList = visible.map { Self.escapeSQLIdentifier($0) }.joined(separator: ", ")
+        }
+
+        sqlQuery.replaceSubrange(range, with: newColumnList)
     }
 
     // MARK: - Column Configuration Persistence

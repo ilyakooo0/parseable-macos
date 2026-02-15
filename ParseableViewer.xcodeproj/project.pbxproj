@@ -35,7 +35,9 @@
 		822B3C27B35EA429E522AFB4 /* LogTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC934220A4BBA1B37F944573 /* LogTableView.swift */; };
 		835943BF8C2C9AB9CA203B2F /* ParseableClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1771C7B952AEB93E35ADF /* ParseableClient.swift */; };
 		836F637D54951D3BC6A2AF11 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4EB9B6688633BC4E8D968065 /* Assets.xcassets */; };
+		8FD945D3E83049275E44335E /* SQLTokenizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B107964BA8F8E4AF1DC8566D /* SQLTokenizer.swift */; };
 		9C860DEEFE4446A152C18B62 /* ParseableViewerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62C07A9EF327212C2C44D281 /* ParseableViewerApp.swift */; };
+		A8B0548F0793B57AF05FA272 /* SQLTokenizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FBB7888D01E1AD72BF342BC /* SQLTokenizerTests.swift */; };
 		B1BBABAB489838F84E670DD6 /* AlertModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D3CDFCD82AF6D988009AC5A /* AlertModels.swift */; };
 		BA06B242DE817368D1BAD194 /* SQLEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF186DF367E2C7EEE4780D14 /* SQLEditorView.swift */; };
 		BAA005C4A067CB6EBA4294DE /* ServerInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A83116AF430E859E6A7FDF0 /* ServerInfoView.swift */; };
@@ -84,9 +86,11 @@
 		93D1C596856E6FB5C39249DD /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		996D7D107A1959CF67E82DF5 /* ConnectionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStoreTests.swift; sourceTree = "<group>"; };
 		9DF1D667CE043D657046ABC1 /* ConnectionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionSheet.swift; sourceTree = "<group>"; };
+		9FBB7888D01E1AD72BF342BC /* SQLTokenizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLTokenizerTests.swift; sourceTree = "<group>"; };
 		A6596EAA474BC10AE4741FBF /* SyntaxHighlighting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntaxHighlighting.swift; sourceTree = "<group>"; };
 		AF186DF367E2C7EEE4780D14 /* SQLEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLEditorView.swift; sourceTree = "<group>"; };
 		B0ED2520AE908C73BF5C00AA /* ParseableFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseableFilter.swift; sourceTree = "<group>"; };
+		B107964BA8F8E4AF1DC8566D /* SQLTokenizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLTokenizer.swift; sourceTree = "<group>"; };
 		B2F7F4E5D5A9542B5E7E6C62 /* ParseableViewer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ParseableViewer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B38EDA7C380889A9DF25566E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B96F0F5013CC46086EFEDA5A /* TimeRangePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeRangePicker.swift; sourceTree = "<group>"; };
@@ -152,6 +156,7 @@
 				8FBAA52C12C4E02A735DA6EA /* QueryViewModelTests.swift */,
 				D4F0DA80D3E3AD784E8B06E7 /* ServerConnectionTests.swift */,
 				2B692AC5D403FB0CBB28935B /* SQLAutoCompleteTests.swift */,
+				9FBB7888D01E1AD72BF342BC /* SQLTokenizerTests.swift */,
 				2535C31705B3ADC1C8628380 /* SyntaxHighlightingTests.swift */,
 			);
 			path = ParseableViewerTests;
@@ -174,6 +179,7 @@
 				B0ED2520AE908C73BF5C00AA /* ParseableFilter.swift */,
 				18D05E439E6063E901A3E7EC /* ServerConnection.swift */,
 				6B7C589A8DC2293DDDE4D60F /* ServerInfo.swift */,
+				B107964BA8F8E4AF1DC8566D /* SQLTokenizer.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -338,6 +344,7 @@
 				5681C7459B58D71A83496890 /* QueryViewModel.swift in Sources */,
 				11A5740A00A2E29D4EC77B66 /* SQLAutoComplete.swift in Sources */,
 				BA06B242DE817368D1BAD194 /* SQLEditorView.swift in Sources */,
+				8FD945D3E83049275E44335E /* SQLTokenizer.swift in Sources */,
 				DE4DD2EB56F92820EE01CBE1 /* ServerConnection.swift in Sources */,
 				3F7EB642D3EBA91FCC962F15 /* ServerInfo.swift in Sources */,
 				BAA005C4A067CB6EBA4294DE /* ServerInfoView.swift in Sources */,
@@ -362,6 +369,7 @@
 				F8F9730A83587099FF50E77B /* ParseableClientTests.swift in Sources */,
 				D9C618815EEBE79EE7529EC2 /* QueryViewModelTests.swift in Sources */,
 				3FDB32277A679A14D1455A7D /* SQLAutoCompleteTests.swift in Sources */,
+				A8B0548F0793B57AF05FA272 /* SQLTokenizerTests.swift in Sources */,
 				BCEB51336ECF5827F888614E /* ServerConnectionTests.swift in Sources */,
 				507DF05FC7A223B2F7E701EF /* SyntaxHighlightingTests.swift in Sources */,
 			);
