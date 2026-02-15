@@ -199,6 +199,7 @@ struct SidebarView: View {
 
 struct ConnectionStatusView: View {
     @Environment(AppState.self) private var appState
+    static let addConnectionID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -211,38 +212,26 @@ struct ConnectionStatusView: View {
                     Picker("Connection", selection: Binding<UUID>(
                         get: { connection.id },
                         set: { newID in
-                            if let conn = appState.connections.first(where: { $0.id == newID }) {
+                            if newID == ConnectionStatusView.addConnectionID {
+                                appState.editingConnection = nil
+                                appState.showConnectionSheet = true
+                            } else if let conn = appState.connections.first(where: { $0.id == newID }) {
                                 Task { await appState.connect(to: conn) }
                             }
                         }
                     )) {
-                        ForEach(appState.connections) { conn in
-                            Text(conn.name).tag(conn.id)
+                        Section {
+                            ForEach(appState.connections) { conn in
+                                Text(conn.name).tag(conn.id)
+                            }
+                        }
+                        Section {
+                            Text("Add Connection...").tag(ConnectionStatusView.addConnectionID)
                         }
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .accessibilityLabel("Connection selector")
-                    Spacer()
-                    Menu {
-                        Button("Add Connection...") {
-                            appState.editingConnection = nil
-                            appState.showConnectionSheet = true
-                        }
-                        Button("Edit Connection...") {
-                            appState.editingConnection = connection
-                            appState.showConnectionSheet = true
-                        }
-                        Divider()
-                        Button("Disconnect") {
-                            appState.disconnect()
-                        }
-                    } label: {
-                        Image(systemName: "gear")
-                    }
-                    .menuStyle(.borderlessButton)
-                    .frame(width: 24)
-                    .accessibilityLabel("Connection options")
                 }
             } else if appState.isConnecting {
                 HStack {
