@@ -11,6 +11,8 @@ final class QueryViewModel {
     var columnOrder: [String] = []
     var hiddenColumns: Set<String> = []
     var autoHiddenColumns: Set<String> = []
+    /// Column config from a saved query, applied on next query execution.
+    var pendingColumnConfig: ColumnConfiguration?
     private var currentStream: String?
     var isLoading = false
     var errorMessage: String?
@@ -191,7 +193,19 @@ final class QueryViewModel {
         columns = extractedColumns
         currentStream = stream
 
-        guard let stream, let config = Self.loadColumnConfig(for: stream) else {
+        // Use pending config (from a saved query) if available,
+        // otherwise fall back to the per-stream default.
+        let config: ColumnConfiguration?
+        if let pending = pendingColumnConfig {
+            config = pending
+            pendingColumnConfig = nil
+        } else if let stream {
+            config = Self.loadColumnConfig(for: stream)
+        } else {
+            config = nil
+        }
+
+        guard let config else {
             columnOrder = extractedColumns
             hiddenColumns = []
             return

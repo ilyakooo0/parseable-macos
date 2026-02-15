@@ -285,7 +285,7 @@ struct SavedQueryRow: View {
     var body: some View {
         Button {
             appState.selectedStream = query.stream
-            appState.pendingSavedQuerySQL = query.sql
+            appState.pendingSavedQuery = query
             appState.currentTab = .query
         } label: {
             HStack {

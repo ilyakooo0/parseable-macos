@@ -270,10 +270,16 @@ struct QueryView: View {
                 viewModel.cancelQuery()
             }
         }
-        .onChange(of: appState.pendingSavedQuerySQL) { _, newSQL in
-            if let sql = newSQL {
-                viewModel.sqlQuery = sql
-                appState.pendingSavedQuerySQL = nil
+        .onChange(of: appState.pendingSavedQuery) { _, newQuery in
+            if let query = newQuery {
+                viewModel.sqlQuery = query.sql
+                if let order = query.columnOrder {
+                    viewModel.pendingColumnConfig = QueryViewModel.ColumnConfiguration(
+                        order: order,
+                        hidden: query.hiddenColumns ?? []
+                    )
+                }
+                appState.pendingSavedQuery = nil
             }
         }
         .alert("Export Error", isPresented: $showExportError) {
@@ -291,10 +297,14 @@ struct QueryView: View {
                     Button("Cancel") { showSaveQuerySheet = false }
                     Spacer()
                     Button("Save") {
+                        let colOrder = viewModel.columnOrder.isEmpty ? nil : viewModel.columnOrder
+                        let hidden = viewModel.hiddenColumns.isEmpty ? nil : viewModel.hiddenColumns
                         let query = SavedQuery(
                             name: saveQueryName,
                             sql: viewModel.sqlQuery,
-                            stream: appState.selectedStream ?? ""
+                            stream: appState.selectedStream ?? "",
+                            columnOrder: colOrder,
+                            hiddenColumns: hidden
                         )
                         appState.addSavedQuery(query)
                         saveQueryName = ""

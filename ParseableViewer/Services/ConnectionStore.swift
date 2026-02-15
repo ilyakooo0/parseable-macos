@@ -63,12 +63,18 @@ struct SavedQuery: Identifiable, Codable, Hashable, Sendable {
     var sql: String
     var stream: String
     var createdAt: Date
+    var columnOrder: [String]?
+    var hiddenColumns: Set<String>?
 
-    init(id: UUID = UUID(), name: String, sql: String, stream: String, createdAt: Date = Date()) {
+    init(id: UUID = UUID(), name: String, sql: String, stream: String,
+         columnOrder: [String]? = nil, hiddenColumns: Set<String>? = nil,
+         createdAt: Date = Date()) {
         self.id = id
         self.name = name
         self.sql = sql
         self.stream = stream
+        self.columnOrder = columnOrder
+        self.hiddenColumns = hiddenColumns
         self.createdAt = createdAt
     }
 }

@@ -35,7 +35,7 @@ final class AppState {
     // MARK: - Saved Queries
     var savedQueries: [SavedQuery] = []
     /// Set by sidebar when user clicks a saved query; consumed by QueryView.
-    var pendingSavedQuerySQL: String?
+    var pendingSavedQuery: SavedQuery?
 
     enum AppTab: String, CaseIterable, Identifiable {
         case query = "Query"
