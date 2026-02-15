@@ -1,12 +1,16 @@
 import Foundation
 
-struct LogStream: Identifiable, Codable, Hashable, Sendable {
+struct LogStream: Identifiable, Codable, Hashable, Sendable, Comparable {
     let name: String
 
     var id: String { name }
 
     init(name: String) {
         self.name = name
+    }
+
+    static func < (lhs: LogStream, rhs: LogStream) -> Bool {
+        lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
     }
 
     init(from decoder: Decoder) throws {
