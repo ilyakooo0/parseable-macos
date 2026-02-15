@@ -105,6 +105,34 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertEqual(loaded[0].stream, "backend-logs")
     }
 
+    func testSavedQueryStoreRoundTripWithColumnConfig() {
+        let query = SavedQuery(
+            name: "With Columns",
+            sql: "SELECT * FROM logs",
+            stream: "backend-logs",
+            columnOrder: ["level", "message", "p_timestamp"],
+            hiddenColumns: ["p_metadata"]
+        )
+        SavedQueryStore.save([query])
+        let loaded = SavedQueryStore.load()
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(loaded[0].columnOrder, ["level", "message", "p_timestamp"])
+        XCTAssertEqual(loaded[0].hiddenColumns, ["p_metadata"])
+    }
+
+    func testSavedQueryStoreBackwardCompatibility() {
+        // Simulate a saved query without column fields (pre-feature data)
+        let json = """
+        [{"id":"00000000-0000-0000-0000-000000000001","name":"Old Query","sql":"SELECT 1","stream":"s","createdAt":0}]
+        """
+        UserDefaults.standard.set(json.data(using: .utf8), forKey: "parseable_saved_queries")
+        let loaded = SavedQueryStore.load()
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(loaded[0].name, "Old Query")
+        XCTAssertNil(loaded[0].columnOrder)
+        XCTAssertNil(loaded[0].hiddenColumns)
+    }
+
     func testSavedQueryStoreMultiple() {
         let q1 = SavedQuery(name: "Query 1", sql: "SELECT 1", stream: "s1")
         let q2 = SavedQuery(name: "Query 2", sql: "SELECT 2", stream: "s2")

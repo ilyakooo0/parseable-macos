@@ -544,6 +544,64 @@ final class QueryViewModelTests: XCTestCase {
         XCTAssertTrue(vm.autoHiddenColumns.isEmpty)
     }
 
+    // MARK: - Pending column config from saved queries
+
+    func testApplyColumnConfigUsesPendingConfig() {
+        let vm = QueryViewModel()
+        vm.pendingColumnConfig = QueryViewModel.ColumnConfiguration(
+            order: ["c", "a", "b"],
+            hidden: ["b"]
+        )
+        vm.applyColumnConfig(extractedColumns: ["a", "b", "c"], stream: "test_stream")
+        XCTAssertEqual(vm.columnOrder, ["c", "a", "b"])
+        XCTAssertEqual(vm.hiddenColumns, ["b"])
+        XCTAssertNil(vm.pendingColumnConfig, "Pending config should be consumed")
+    }
+
+    func testApplyColumnConfigPendingOverridesStreamDefault() {
+        let vm = QueryViewModel()
+        // Save a stream-level config
+        let streamConfig = QueryViewModel.ColumnConfiguration(order: ["a", "b", "c"], hidden: [])
+        if let data = try? JSONEncoder().encode(streamConfig) {
+            UserDefaults.standard.set(data, forKey: "parseable_column_config_pending_test_stream")
+        }
+
+        // Set a different pending config (from saved query)
+        vm.pendingColumnConfig = QueryViewModel.ColumnConfiguration(
+            order: ["c", "b", "a"],
+            hidden: ["a"]
+        )
+        vm.applyColumnConfig(extractedColumns: ["a", "b", "c"], stream: "pending_test_stream")
+        XCTAssertEqual(vm.columnOrder, ["c", "b", "a"])
+        XCTAssertEqual(vm.hiddenColumns, ["a"])
+
+        // Clean up
+        UserDefaults.standard.removeObject(forKey: "parseable_column_config_pending_test_stream")
+    }
+
+    func testApplyColumnConfigPendingMergesNewColumns() {
+        let vm = QueryViewModel()
+        // Pending config references columns a and b, but results also have c
+        vm.pendingColumnConfig = QueryViewModel.ColumnConfiguration(
+            order: ["b", "a"],
+            hidden: []
+        )
+        vm.applyColumnConfig(extractedColumns: ["a", "b", "c"], stream: "test_stream")
+        XCTAssertEqual(vm.columnOrder, ["b", "a", "c"])
+    }
+
+    func testApplyColumnConfigPendingRemovesStaleColumns() {
+        let vm = QueryViewModel()
+        // Pending config references "old" which no longer exists in results
+        vm.pendingColumnConfig = QueryViewModel.ColumnConfiguration(
+            order: ["old", "a", "b"],
+            hidden: ["old"]
+        )
+        vm.applyColumnConfig(extractedColumns: ["a", "b"], stream: "test_stream")
+        XCTAssertEqual(vm.columnOrder, ["a", "b"])
+        XCTAssertTrue(vm.hiddenColumns.isEmpty)
+    }
+
     func testCSVExportExcludesAutoHiddenColumns() {
         let vm = QueryViewModel()
         vm.results = [
