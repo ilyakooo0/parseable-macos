@@ -301,6 +301,9 @@ struct LiveTailView: View {
                             records: viewModel.filteredEntries.map { $0.record },
                             onMoveColumn: { from, to in
                                 viewModel.moveColumn(from, to: to)
+                            },
+                            onColumnFilter: { column, value, exclude in
+                                viewModel.addColumnFilter(column: column, value: value, exclude: exclude)
                             }
                         )
                     }

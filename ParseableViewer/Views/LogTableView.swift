@@ -98,7 +98,8 @@ struct LogTableView: View {
                                 sortAscending: $sortAscending,
                                 columnWidths: $columnWidths,
                                 records: records,
-                                onMoveColumn: onMoveColumn
+                                onMoveColumn: onMoveColumn,
+                                onColumnFilter: onCellFilter
                             )
                         }
                     }
@@ -200,6 +201,28 @@ struct LogHeaderView: View {
     @Binding var columnWidths: [String: CGFloat]
     let records: [LogRecord]
     var onMoveColumn: ((String, String) -> Void)?
+    var onColumnFilter: ((_ column: String, _ value: JSONValue?, _ exclude: Bool) -> Void)?
+
+    private static let maxFilterValues = 20
+
+    private func uniqueValues(for column: String) -> [JSONValue] {
+        var seen = Set<JSONValue>()
+        var result: [JSONValue] = []
+        for record in records {
+            let value = record[column] ?? .null
+            if seen.insert(value).inserted {
+                result.append(value)
+            }
+        }
+        return result.sorted()
+    }
+
+    private func filterDisplayLabel(for value: JSONValue) -> String {
+        let str = value.displayString
+        if str.isEmpty { return "(empty)" }
+        if str.count > 50 { return String(str.prefix(50)) + "..." }
+        return str
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -261,6 +284,40 @@ struct LogHeaderView: View {
                     }
                     Button("Auto-fit All Columns") {
                         columnWidths = computeColumnWidths(columns: columns, records: records)
+                    }
+
+                    if let onFilter = onColumnFilter {
+                        let values = uniqueValues(for: column)
+                        if !values.isEmpty {
+                            Divider()
+
+                            let displayValues = Array(values.prefix(Self.maxFilterValues))
+                            let remaining = values.count - displayValues.count
+
+                            Menu("Filter by Value") {
+                                ForEach(displayValues, id: \.self) { value in
+                                    Button(filterDisplayLabel(for: value)) {
+                                        onFilter(column, value == .null ? nil : value, false)
+                                    }
+                                }
+                                if remaining > 0 {
+                                    Divider()
+                                    Text("\(remaining) more values not shown")
+                                }
+                            }
+
+                            Menu("Exclude Value") {
+                                ForEach(displayValues, id: \.self) { value in
+                                    Button(filterDisplayLabel(for: value)) {
+                                        onFilter(column, value == .null ? nil : value, true)
+                                    }
+                                }
+                                if remaining > 0 {
+                                    Divider()
+                                    Text("\(remaining) more values not shown")
+                                }
+                            }
+                        }
                     }
                 }
             }
