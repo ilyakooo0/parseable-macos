@@ -25,6 +25,7 @@ struct LiveTailView: View {
                         }
                         .buttonStyle(.bordered)
                         .tint(.red)
+                        .accessibilityLabel("Stop live tail")
 
                         Button {
                             viewModel.togglePause()
@@ -34,6 +35,8 @@ struct LiveTailView: View {
                                 Text(viewModel.isPaused ? "Resume" : "Pause")
                             }
                         }
+                        .keyboardShortcut("p", modifiers: .command)
+                        .accessibilityLabel(viewModel.isPaused ? "Resume live tail" : "Pause live tail")
                     } else {
                         Button {
                             viewModel.start(
@@ -48,6 +51,7 @@ struct LiveTailView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(!appState.isConnected || appState.selectedStream == nil)
+                        .accessibilityLabel("Start live tail")
                     }
 
                     Spacer()
@@ -59,6 +63,7 @@ struct LiveTailView: View {
                         TextField("Filter...", text: $vm.filterText)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 200)
+                            .accessibilityLabel("Filter live tail entries")
                     }
 
                     Toggle("Auto-scroll", isOn: $autoScroll)
@@ -70,6 +75,8 @@ struct LiveTailView: View {
                         Image(systemName: "trash")
                     }
                     .help("Clear entries")
+                    .keyboardShortcut(.delete, modifiers: .command)
+                    .accessibilityLabel("Clear all entries")
                 }
                 .padding(8)
 

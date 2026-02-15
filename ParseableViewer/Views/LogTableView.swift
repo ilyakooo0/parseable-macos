@@ -33,6 +33,7 @@ struct LogTableView: View {
     @State private var sortAscending = false
     @State private var selectedIndex: Int?
     @State private var cachedSorted: [LogRecord] = []
+    @State private var sortTask: Task<Void, Never>?
 
     var body: some View {
         if records.isEmpty {
@@ -77,10 +78,19 @@ struct LogTableView: View {
                         .frame(minWidth: 300, idealWidth: 350)
                 }
             }
-            .onChange(of: records.count) { _, _ in rebuildSort() }
-            .onChange(of: sortColumn) { _, _ in rebuildSort() }
-            .onChange(of: sortAscending) { _, _ in rebuildSort() }
+            .onChange(of: records.count) { _, _ in debouncedRebuildSort() }
+            .onChange(of: sortColumn) { _, _ in debouncedRebuildSort() }
+            .onChange(of: sortAscending) { _, _ in debouncedRebuildSort() }
             .onAppear { rebuildSort() }
+        }
+    }
+
+    private func debouncedRebuildSort() {
+        sortTask?.cancel()
+        sortTask = Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            rebuildSort()
         }
     }
 

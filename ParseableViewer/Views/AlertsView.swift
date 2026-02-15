@@ -21,6 +21,7 @@ struct AlertsView: View {
                             Image(systemName: "arrow.clockwise")
                         }
                         .disabled(isLoading)
+                        .accessibilityLabel("Refresh alerts")
                     }
                     .padding()
 
@@ -36,6 +37,10 @@ struct AlertsView: View {
                                 .foregroundStyle(.secondary)
                             Text(error)
                                 .foregroundStyle(.secondary)
+                            Button("Retry") {
+                                Task { await loadAlerts(stream: stream) }
+                            }
+                            .buttonStyle(.bordered)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if let alerts = alertConfig?.alerts, !alerts.isEmpty {

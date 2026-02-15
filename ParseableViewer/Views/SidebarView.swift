@@ -64,6 +64,7 @@ struct SidebarView: View {
                         Image(systemName: "plus")
                     }
                     .help("Create new stream")
+                    .accessibilityLabel("Create new stream")
 
                     Button {
                         Task { await appState.refreshStreams() }
@@ -72,6 +73,7 @@ struct SidebarView: View {
                     }
                     .help("Refresh streams")
                     .disabled(appState.isLoadingStreams)
+                    .accessibilityLabel("Refresh streams")
 
                     Spacer()
 
@@ -168,6 +170,7 @@ struct ConnectionStatusView: View {
                     }
                     .menuStyle(.borderlessButton)
                     .frame(width: 24)
+                    .accessibilityLabel("Connection options")
                 }
                 Text(connection.url)
                     .font(.caption)

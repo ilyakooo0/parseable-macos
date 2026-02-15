@@ -1,4 +1,5 @@
 import Foundation
+import Network
 import SwiftUI
 
 @Observable
@@ -10,6 +11,8 @@ final class AppState {
     var isConnected = false
     var isConnecting = false
     var serverAbout: ServerAbout?
+    private(set) var isNetworkAvailable = true
+    private let networkMonitor = NWPathMonitor()
 
     // MARK: - Stream State
     var streams: [LogStream] = []
@@ -64,6 +67,13 @@ final class AppState {
         connections = ConnectionStore.loadConnections()
         savedQueries = SavedQueryStore.load()
 
+        networkMonitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor [weak self] in
+                self?.isNetworkAvailable = path.status == .satisfied
+            }
+        }
+        networkMonitor.start(queue: DispatchQueue(label: "NetworkMonitor"))
+
         if let activeID = ConnectionStore.loadActiveConnectionID(),
            let connection = connections.first(where: { $0.id == activeID }) {
             Task { @MainActor in
@@ -76,6 +86,14 @@ final class AppState {
 
     @MainActor
     func connect(to connection: ServerConnection) async {
+        guard !isConnecting else { return }
+
+        if !isNetworkAvailable {
+            self.errorMessage = "No internet connection. Check your network and try again."
+            self.showError = true
+            return
+        }
+
         isConnecting = true
         errorMessage = nil
 

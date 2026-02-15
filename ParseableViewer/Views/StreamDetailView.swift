@@ -38,6 +38,7 @@ struct StreamDetailView: View {
                                 Image(systemName: "arrow.clockwise")
                             }
                             .disabled(isLoading)
+                            .accessibilityLabel("Refresh stream details")
                         }
 
                         if isLoading {
@@ -49,6 +50,12 @@ struct StreamDetailView: View {
                             HStack {
                                 Image(systemName: "exclamationmark.triangle")
                                 Text(error)
+                                Spacer()
+                                Button("Retry") {
+                                    Task { await loadData(stream: stream) }
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
                             }
                             .foregroundStyle(.red)
                             .font(.caption)
@@ -177,20 +184,35 @@ struct StreamDetailView: View {
         errorMessage = nil
 
         var failures: [String] = []
+        var sawNotFound = false
 
         do { schema = try await client.getStreamSchema(stream: stream) }
-        catch { schema = nil; failures.append("schema") }
+        catch {
+            schema = nil; failures.append("schema")
+            if case .serverError(let code, _) = error as? ParseableError, code == 404 { sawNotFound = true }
+        }
 
         do { stats = try await client.getStreamStats(stream: stream) }
-        catch { stats = nil; failures.append("stats") }
+        catch {
+            stats = nil; failures.append("stats")
+            if case .serverError(let code, _) = error as? ParseableError, code == 404 { sawNotFound = true }
+        }
 
         do { info = try await client.getStreamInfo(stream: stream) }
-        catch { info = nil; failures.append("info") }
+        catch {
+            info = nil; failures.append("info")
+            if case .serverError(let code, _) = error as? ParseableError, code == 404 { sawNotFound = true }
+        }
 
         do { retention = try await client.getRetention(stream: stream) }
-        catch { retention = []; failures.append("retention") }
+        catch {
+            retention = []; failures.append("retention")
+            if case .serverError(let code, _) = error as? ParseableError, code == 404 { sawNotFound = true }
+        }
 
-        if !failures.isEmpty {
+        if sawNotFound && failures.count == 4 {
+            errorMessage = "Stream \"\(stream)\" was not found. It may have been deleted."
+        } else if !failures.isEmpty {
             errorMessage = "Failed to load: \(failures.joined(separator: ", "))"
         }
 

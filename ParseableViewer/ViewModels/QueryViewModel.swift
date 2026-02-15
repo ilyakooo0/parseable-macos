@@ -25,6 +25,7 @@ final class QueryViewModel {
 
     // Query history
     var queryHistory: [QueryHistoryEntry] = []
+    var historyIsFull = false
     private static let maxHistory = 50
 
     struct QueryHistoryEntry: Identifiable, Codable {
@@ -245,6 +246,7 @@ final class QueryViewModel {
         queryHistory.insert(entry, at: 0)
         if queryHistory.count > Self.maxHistory {
             queryHistory = Array(queryHistory.prefix(Self.maxHistory))
+            historyIsFull = true
         }
         Self.saveHistory(queryHistory)
     }

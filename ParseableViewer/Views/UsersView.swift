@@ -18,6 +18,7 @@ struct UsersView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .disabled(isLoading)
+                .accessibilityLabel("Refresh users")
             }
             .padding()
 
@@ -33,6 +34,10 @@ struct UsersView: View {
                         .foregroundStyle(.secondary)
                     Text(error)
                         .foregroundStyle(.secondary)
+                    Button("Retry") {
+                        Task { await loadUsers() }
+                    }
+                    .buttonStyle(.bordered)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if users.isEmpty {

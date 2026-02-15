@@ -32,6 +32,7 @@ struct LogDetailView: View {
                         .foregroundStyle(showCopyConfirmation ? .green : .primary)
                 }
                 .help("Copy to clipboard")
+                .accessibilityLabel(showCopyConfirmation ? "Copied to clipboard" : "Copy log entry to clipboard")
             }
             .padding(8)
 
@@ -58,7 +59,8 @@ struct LogDetailView: View {
             NSPasteboard.general.setString(json, forType: .string)
 
             showCopyConfirmation = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            Task {
+                try? await Task.sleep(for: .seconds(1.5))
                 showCopyConfirmation = false
             }
         }

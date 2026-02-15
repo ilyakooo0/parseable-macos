@@ -38,9 +38,11 @@ struct ConnectionSheet: View {
             Form {
                 TextField("Name:", text: $name)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Connection name")
 
                 TextField("Server URL:", text: $url)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Server URL")
                     .onChange(of: url) { _, newValue in
                         urlValidationError = Self.validateURL(newValue)
                     }
@@ -53,9 +55,11 @@ struct ConnectionSheet: View {
 
                 TextField("Username:", text: $username)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Username")
 
                 SecureField("Password:", text: $password)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Password")
             }
             .formStyle(.grouped)
             .padding()
@@ -91,8 +95,10 @@ struct ConnectionSheet: View {
                         if let connection {
                             appState.removeConnection(connection)
                         }
+                        password = ""
                         dismiss()
                     }
+                    .accessibilityLabel("Delete connection")
                 }
 
                 Spacer()
@@ -101,8 +107,10 @@ struct ConnectionSheet: View {
                     testConnection()
                 }
                 .disabled(url.isEmpty || username.isEmpty || isTesting || urlValidationError != nil)
+                .accessibilityLabel("Test connection")
 
                 Button("Cancel") {
+                    password = ""
                     dismiss()
                 }
                 .keyboardShortcut(.cancelAction)
@@ -145,14 +153,49 @@ struct ConnectionSheet: View {
                 }
             } catch {
                 await MainActor.run {
-                    testResult = .failure(error.localizedDescription)
+                    testResult = .failure(Self.userFriendlyError(error))
                     isTesting = false
                 }
             }
         }
     }
 
+    private static func userFriendlyError(_ error: Error) -> String {
+        if let parseableError = error as? ParseableError {
+            switch parseableError {
+            case .unauthorized:
+                return "Authentication failed. Check your username and password."
+            case .invalidURL:
+                return "The server URL is invalid. Check the format (e.g. https://host:port)."
+            case .serverError(let code, _):
+                return "Server returned error \(code). Check that the URL points to a Parseable instance."
+            default:
+                return parseableError.localizedDescription
+            }
+        }
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            switch nsError.code {
+            case NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost:
+                return "No internet connection. Check your network and try again."
+            case NSURLErrorCannotFindHost:
+                return "Cannot find server. Check the URL and your network connection."
+            case NSURLErrorCannotConnectToHost:
+                return "Cannot connect to server. Check the URL and that the server is running."
+            case NSURLErrorTimedOut:
+                return "Connection timed out. The server may be unreachable."
+            case NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateUntrusted:
+                return "SSL/TLS error. The server certificate may be invalid or untrusted."
+            default:
+                return "Network error: \(error.localizedDescription)"
+            }
+        }
+        return error.localizedDescription
+    }
+
     private func saveAndConnect() {
+        guard !isSaving else { return }
+
         let conn: ServerConnection
         if let existing = connection {
             conn = ServerConnection(id: existing.id, name: name, url: url, username: username, password: password)
@@ -172,6 +215,7 @@ struct ConnectionSheet: View {
                 if appState.errorMessage != nil {
                     testResult = .failure(appState.errorMessage ?? "Connection failed")
                 } else {
+                    password = ""
                     dismiss()
                 }
             }

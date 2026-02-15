@@ -66,22 +66,26 @@ struct MainContentView: View {
 
             Divider()
 
-            // Content
-            Group {
-                switch appState.currentTab {
-                case .query:
-                    QueryView()
-                case .liveTail:
-                    LiveTailView()
-                case .streamInfo:
-                    StreamDetailView()
-                case .alerts:
-                    AlertsView()
-                case .users:
-                    UsersView()
-                case .serverInfo:
-                    ServerInfoView()
-                }
+            // Content — only the active tab is instantiated
+            switch appState.currentTab {
+            case .query:
+                QueryView()
+                    .id(AppState.AppTab.query)
+            case .liveTail:
+                LiveTailView()
+                    .id(AppState.AppTab.liveTail)
+            case .streamInfo:
+                StreamDetailView()
+                    .id(AppState.AppTab.streamInfo)
+            case .alerts:
+                AlertsView()
+                    .id(AppState.AppTab.alerts)
+            case .users:
+                UsersView()
+                    .id(AppState.AppTab.users)
+            case .serverInfo:
+                ServerInfoView()
+                    .id(AppState.AppTab.serverInfo)
             }
         }
     }

@@ -26,6 +26,10 @@ struct QueryView: View {
 
                     if !viewModel.queryHistory.isEmpty {
                         Menu {
+                            if viewModel.historyIsFull {
+                                Text("History limit reached (oldest entries removed)")
+                                Divider()
+                            }
                             ForEach(viewModel.queryHistory.prefix(15)) { entry in
                                 Button {
                                     viewModel.sqlQuery = entry.sql
@@ -44,7 +48,8 @@ struct QueryView: View {
                         } label: {
                             Image(systemName: "clock.arrow.circlepath")
                         }
-                        .help("Query history")
+                        .help(viewModel.historyIsFull ? "Query history (full)" : "Query history")
+                        .accessibilityLabel("Query history")
                     }
 
                     Button {
@@ -54,6 +59,7 @@ struct QueryView: View {
                     }
                     .help("Save query")
                     .disabled(viewModel.sqlQuery.isEmpty)
+                    .accessibilityLabel("Save query")
 
                     Menu {
                         Button("Export as JSON") { exportJSON() }
@@ -62,6 +68,8 @@ struct QueryView: View {
                         Image(systemName: "square.and.arrow.up")
                     }
                     .disabled(viewModel.results.isEmpty)
+                    .accessibilityLabel("Export results")
+                    .help("Export results")
 
                     Button {
                         Task {
@@ -154,6 +162,7 @@ struct QueryView: View {
                         TextField("Filter results...", text: $vm.filterText)
                             .textFieldStyle(.roundedBorder)
                             .frame(maxWidth: 300)
+                            .accessibilityLabel("Filter query results")
 
                         if !viewModel.filterText.isEmpty {
                             Text("\(viewModel.filteredResults.count) of \(viewModel.results.count)")
