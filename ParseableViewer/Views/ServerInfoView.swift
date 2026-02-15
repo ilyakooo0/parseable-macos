@@ -132,10 +132,15 @@ struct ServerInfoView: View {
         isLoading = true
         errorMessage = nil
 
-        async let healthResult = client.checkHealth()
+        async let healthCheck: Void = client.checkHealth()
         async let aboutResult = client.getAbout()
 
-        isHealthy = (try? await healthResult) ?? false
+        do {
+            try await healthCheck
+            isHealthy = true
+        } catch {
+            isHealthy = false
+        }
         about = try? await aboutResult
 
         if about == nil {
