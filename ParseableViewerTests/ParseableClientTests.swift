@@ -260,6 +260,11 @@ final class ParseableClientTests: XCTestCase {
         XCTAssertEqual(msg, "Server error (400): bad query")
     }
 
+    func testUserFriendlyMessageForServerErrorUnknown() {
+        let msg = ParseableError.userFriendlyMessage(for: ParseableError.serverError(400, "Unknown error"))
+        XCTAssertEqual(msg, "Server returned error 400.")
+    }
+
     func testUserFriendlyMessageForInvalidURL() {
         let msg = ParseableError.userFriendlyMessage(for: ParseableError.invalidURL)
         XCTAssertTrue(msg.lowercased().contains("url"))

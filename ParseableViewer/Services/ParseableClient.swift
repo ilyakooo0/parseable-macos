@@ -30,7 +30,7 @@ enum ParseableError: LocalizedError {
                 return "The server URL is invalid. Check the format (e.g. https://host:port)."
             case .serverError(let code, let message):
                 let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.isEmpty {
+                if trimmed.isEmpty || trimmed == "Unknown error" {
                     return "Server returned error \(code)."
                 }
                 return "Server error (\(code)): \(trimmed)"
