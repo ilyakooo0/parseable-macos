@@ -3,8 +3,6 @@ name: Build and Release
 on:
   push:
     branches: [master, main]
-    tags:
-      - 'v*'
   pull_request:
     branches: [master, main]
 
@@ -133,33 +131,38 @@ jobs:
           name: ParseableViewer-universal
           path: ParseableViewer-universal.zip
 
-  prerelease:
+  release:
     needs: create-universal
     runs-on: macos-15
     concurrency:
       group: release
       cancel-in-progress: false
-    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'push'
     permissions:
       contents: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute version from commit timestamp
+        id: version
+        run: |
+          COMMIT_TIMESTAMP=$(TZ=UTC git log -1 --format='%cd' --date=format-local:'%Y%m%d.%H%M%S')
+          echo "timestamp=$COMMIT_TIMESTAMP" >> "$GITHUB_OUTPUT"
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Create or update prerelease
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: Latest Build
+          tag_name: ${{ steps.version.outputs.timestamp }}
+          name: ${{ steps.version.outputs.timestamp }}
           body: |
-            Automated prerelease build from commit ${{ github.sha }}.
-
             **Branch:** ${{ github.ref_name }}
             **Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
-          prerelease: true
-          make_latest: false
           files: |
             artifacts/ParseableViewer-arm64/ParseableViewer-arm64.zip
             artifacts/ParseableViewer-x86_64/ParseableViewer-x86_64.zip
@@ -171,18 +174,18 @@ jobs:
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
+          VERSION="${{ steps.version.outputs.timestamp }}"
           SHA_ARM64=$(shasum -a 256 artifacts/ParseableViewer-arm64/ParseableViewer-arm64.zip | awk '{print $1}')
           SHA_X86_64=$(shasum -a 256 artifacts/ParseableViewer-x86_64/ParseableViewer-x86_64.zip | awk '{print $1}')
-          SHORT_SHA="${GITHUB_SHA::7}"
 
           cat > /tmp/parseable-viewer.rb << CASK
           cask "parseable-viewer" do
             arch arm: "arm64", intel: "x86_64"
 
-            version "$SHORT_SHA"
+            version "$VERSION"
             sha256 arm: "$SHA_ARM64", intel: "$SHA_X86_64"
 
-            url "https://github.com/ilyakooo0/parseable-macos/releases/download/latest/ParseableViewer-#{arch}.zip"
+            url "https://github.com/ilyakooo0/parseable-macos/releases/latest/download/ParseableViewer-#{arch}.zip"
             name "Parseable Viewer"
             desc "A macOS client for Parseable"
             homepage "https://github.com/ilyakooo0/parseable-macos"
@@ -204,29 +207,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Casks/parseable-viewer.rb
-          git commit -m "Update parseable-viewer to ${SHORT_SHA}"
+          git commit -m "Update parseable-viewer to ${VERSION}"
           git push
-
-  release:
-    needs: create-universal
-    runs-on: macos-15
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Create Draft Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: true
-          generate_release_notes: true
-          files: |
-            artifacts/ParseableViewer-arm64/ParseableViewer-arm64.zip
-            artifacts/ParseableViewer-x86_64/ParseableViewer-x86_64.zip
-            artifacts/ParseableViewer-universal/ParseableViewer-universal.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
