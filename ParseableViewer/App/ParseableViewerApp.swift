@@ -22,12 +22,18 @@ struct ParseableViewerApp: App {
 
                 Divider()
 
+                Button("Refresh Query") {
+                    appState.queryRefreshToken = UUID()
+                }
+                .keyboardShortcut("r", modifiers: [.command])
+                .disabled(!appState.isConnected)
+
                 Button("Refresh Streams") {
                     Task {
                         await appState.refreshStreams()
                     }
                 }
-                .keyboardShortcut("r", modifiers: [.command])
+                .keyboardShortcut("r", modifiers: [.command, .shift])
                 .disabled(!appState.isConnected)
             }
 

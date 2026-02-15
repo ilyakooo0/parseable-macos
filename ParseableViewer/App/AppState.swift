@@ -37,6 +37,10 @@ final class AppState {
     /// Set by sidebar when user clicks a saved query; consumed by QueryView.
     var pendingSavedQuery: SavedQuery?
 
+    // MARK: - Query Refresh
+    /// Incremented by the Cmd+R shortcut; QueryView observes changes to re-execute the current query.
+    var queryRefreshToken = UUID()
+
     enum AppTab: String, CaseIterable, Identifiable {
         case query = "Query"
         case liveTail = "Live Tail"
