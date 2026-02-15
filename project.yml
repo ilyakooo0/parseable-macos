@@ -19,6 +19,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.parseableviewer.app
         PRODUCT_NAME: "Parseable Viewer"
+        PRODUCT_MODULE_NAME: ParseableViewer
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.9"
