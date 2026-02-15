@@ -287,6 +287,14 @@ struct QueryView: View {
                 viewModel.cancelQuery()
             }
         }
+        .onChange(of: appState.queryRefreshToken) { _, _ in
+            Task {
+                await viewModel.executeQuery(
+                    client: appState.client,
+                    stream: appState.selectedStream
+                )
+            }
+        }
         .onChange(of: appState.pendingSavedQuery) { _, newQuery in
             if let query = newQuery {
                 viewModel.sqlQuery = query.sql
