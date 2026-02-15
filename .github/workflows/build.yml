@@ -147,7 +147,7 @@ jobs:
       - name: Compute version from commit timestamp
         id: version
         run: |
-          COMMIT_TIMESTAMP=$(TZ=UTC git log -1 --format='%cd' --date=format-local:'%Y%m%d.%H%M%S')
+          COMMIT_TIMESTAMP=$(TZ=UTC git log -1 --format='%cd' --date=format-local:'%Y.%m.%d.%H%M')
           echo "timestamp=$COMMIT_TIMESTAMP" >> "$GITHUB_OUTPUT"
 
       - name: Download all artifacts
