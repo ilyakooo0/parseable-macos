@@ -78,7 +78,7 @@ struct LogTableView: View {
                         .frame(minWidth: 300, idealWidth: 350)
                 }
             }
-            .onChange(of: records.count) { _, _ in debouncedRebuildSort() }
+            .onChange(of: records) { _, _ in debouncedRebuildSort() }
             .onChange(of: sortColumn) { _, _ in debouncedRebuildSort() }
             .onChange(of: sortAscending) { _, _ in debouncedRebuildSort() }
             .onAppear { rebuildSort() }
