@@ -1,6 +1,6 @@
 import Foundation
 
-struct LogStream: Identifiable, Codable, Hashable {
+struct LogStream: Identifiable, Codable, Hashable, Sendable {
     let name: String
 
     var id: String { name }
@@ -24,7 +24,7 @@ struct LogStream: Identifiable, Codable, Hashable {
     }
 }
 
-struct StreamSchema: Codable {
+struct StreamSchema: Codable, Sendable {
     let fields: [SchemaField]
 
     init(fields: [SchemaField]) {
@@ -46,7 +46,7 @@ struct StreamSchema: Codable {
     }
 }
 
-struct SchemaField: Identifiable, Codable, Hashable {
+struct SchemaField: Identifiable, Codable, Hashable, Sendable {
     let name: String
     let dataType: String
 
@@ -76,13 +76,13 @@ struct SchemaField: Identifiable, Codable, Hashable {
     }
 }
 
-struct StreamStats: Codable {
+struct StreamStats: Codable, Sendable {
     let ingestion: IngestionStats?
     let storage: StorageStats?
     let stream: String?
     let time: String?
 
-    struct IngestionStats: Codable {
+    struct IngestionStats: Codable, Sendable {
         let count: Int?
         let size: String?
         let format: String?
@@ -116,7 +116,7 @@ struct StreamStats: Codable {
         }
     }
 
-    struct StorageStats: Codable {
+    struct StorageStats: Codable, Sendable {
         let size: String?
         let type: String?
         let lifetime_size: String?
@@ -146,7 +146,7 @@ struct StreamStats: Codable {
     }
 }
 
-struct StreamInfo: Codable {
+struct StreamInfo: Codable, Sendable {
     let createdAt: String?
     let firstEventAt: String?
     let cacheEnabled: Bool?

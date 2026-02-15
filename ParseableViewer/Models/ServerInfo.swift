@@ -1,6 +1,6 @@
 import Foundation
 
-struct ServerAbout: Codable {
+struct ServerAbout: Codable, Sendable {
     let version: String?
     let uiVersion: String?
     let commit: String?
@@ -44,7 +44,7 @@ struct ServerAbout: Codable {
     }
 }
 
-struct StoreInfo: Codable {
+struct StoreInfo: Codable, Sendable {
     let type: String?
     let path: String?
 
@@ -59,7 +59,7 @@ struct StoreInfo: Codable {
     }
 }
 
-struct RetentionConfig: Codable {
+struct RetentionConfig: Codable, Sendable {
     let description: String?
     let duration: String?
     let action: String?
@@ -82,7 +82,7 @@ struct RetentionConfig: Codable {
     }
 }
 
-struct UserInfo: Identifiable, Codable {
+struct UserInfo: Identifiable, Codable, Sendable {
     let id: String
     let method: String?
 

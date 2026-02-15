@@ -1,6 +1,6 @@
 import Foundation
 
-struct AlertConfig: Codable {
+struct AlertConfig: Codable, Sendable {
     let alerts: [AlertRule]?
     let version: String?
 
@@ -26,7 +26,7 @@ struct AlertConfig: Codable {
     }
 }
 
-struct AlertRule: Identifiable, Codable {
+struct AlertRule: Identifiable, Codable, Sendable {
     let name: String
     let message: String?
     let rule: AlertRuleSpec?
@@ -35,12 +35,12 @@ struct AlertRule: Identifiable, Codable {
     var id: String { name }
 }
 
-struct AlertRuleSpec: Codable {
+struct AlertRuleSpec: Codable, Sendable {
     let type: String?
     let config: String?
 }
 
-struct AlertTarget: Codable {
+struct AlertTarget: Codable, Sendable {
     let type: String?
     let endpoint: String?
     let repeatInterval: String?
