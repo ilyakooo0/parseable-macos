@@ -3,8 +3,10 @@ import SwiftUI
 struct QueryView: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel = QueryViewModel()
-    @State private var showSaveQuerySheet = false
-    @State private var saveQueryName = ""
+    @State private var showSaveFilterSheet = false
+    @State private var saveFilterName = ""
+    @State private var isSavingFilter = false
+    @State private var saveFilterError: String?
     @State private var exportError: String?
     @State private var showExportError = false
     @State private var showColumnPopover = false
@@ -64,13 +66,13 @@ struct QueryView: View {
                     }
 
                     Button {
-                        showSaveQuerySheet = true
+                        showSaveFilterSheet = true
                     } label: {
                         Text("Save view")
                     }
-                    .help("Save query")
+                    .help("Save filter")
                     .disabled(viewModel.sqlQuery.isEmpty)
-                    .accessibilityLabel("Save view")
+                    .accessibilityLabel("Save filter")
 
                     Button {
                         exportResults()
@@ -305,16 +307,10 @@ struct QueryView: View {
                 )
             }
         }
-        .onChange(of: appState.pendingSavedQuery) { _, newQuery in
-            if let query = newQuery {
-                viewModel.sqlQuery = query.sql
-                if let order = query.columnOrder {
-                    viewModel.pendingColumnConfig = QueryViewModel.ColumnConfiguration(
-                        order: order,
-                        hidden: query.hiddenColumns ?? []
-                    )
-                }
-                appState.pendingSavedQuery = nil
+        .onChange(of: appState.pendingFilterSQL) { _, newSQL in
+            if let sql = newSQL {
+                viewModel.sqlQuery = sql
+                appState.pendingFilterSQL = nil
             }
         }
         .alert("Export Error", isPresented: $showExportError) {
@@ -322,30 +318,42 @@ struct QueryView: View {
         } message: {
             Text(exportError ?? "Unknown error")
         }
-        .sheet(isPresented: $showSaveQuerySheet) {
+        .sheet(isPresented: $showSaveFilterSheet) {
             VStack(spacing: 16) {
-                Text("Save Query")
+                Text("Save Filter")
                     .font(.headline)
-                TextField("Query name", text: $saveQueryName)
+                TextField("Filter name", text: $saveFilterName)
                     .textFieldStyle(.roundedBorder)
+                if let error = saveFilterError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
                 HStack {
-                    Button("Cancel") { showSaveQuerySheet = false }
+                    Button("Cancel") {
+                        saveFilterError = nil
+                        showSaveFilterSheet = false
+                    }
                     Spacer()
                     Button("Save") {
-                        let colOrder = viewModel.columnOrder.isEmpty ? nil : viewModel.columnOrder
-                        let hidden = viewModel.hiddenColumns.isEmpty ? nil : viewModel.hiddenColumns
-                        let query = SavedQuery(
-                            name: saveQueryName,
-                            sql: viewModel.sqlQuery,
-                            stream: appState.selectedStream ?? "",
-                            columnOrder: colOrder,
-                            hiddenColumns: hidden
-                        )
-                        appState.addSavedQuery(query)
-                        saveQueryName = ""
-                        showSaveQuerySheet = false
+                        isSavingFilter = true
+                        saveFilterError = nil
+                        Task {
+                            do {
+                                try await appState.saveFilter(
+                                    name: saveFilterName,
+                                    sql: viewModel.sqlQuery,
+                                    stream: appState.selectedStream ?? ""
+                                )
+                                saveFilterName = ""
+                                showSaveFilterSheet = false
+                            } catch {
+                                saveFilterError = ParseableError.userFriendlyMessage(for: error)
+                            }
+                            isSavingFilter = false
+                        }
                     }
-                    .disabled(saveQueryName.isEmpty)
+                    .disabled(saveFilterName.isEmpty || isSavingFilter)
                     .buttonStyle(.borderedProminent)
                 }
             }

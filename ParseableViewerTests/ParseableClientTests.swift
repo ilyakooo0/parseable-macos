@@ -477,6 +477,131 @@ final class ParseableClientTests: XCTestCase {
         XCTAssertTrue(error?.lowercased().contains("empty") ?? false)
     }
 
+    // MARK: - ParseableFilter decoding
+
+    func testFilterFullResponse() throws {
+        let json = """
+        {
+            "filter_id": "abc-123",
+            "filter_name": "Error logs",
+            "stream_name": "backend",
+            "query": {"filter_type": "sql", "filter_query": "SELECT * FROM backend WHERE level = 'error'"},
+            "version": "v1",
+            "user_id": "admin",
+            "time_filter": {"start": "2024-01-01T00:00:00Z", "end": "2024-01-02T00:00:00Z"}
+        }
+        """.data(using: .utf8)!
+
+        let filter = try JSONDecoder().decode(ParseableFilter.self, from: json)
+        XCTAssertEqual(filter.filterId, "abc-123")
+        XCTAssertEqual(filter.filterName, "Error logs")
+        XCTAssertEqual(filter.streamName, "backend")
+        XCTAssertEqual(filter.query.filterType, "sql")
+        XCTAssertEqual(filter.query.filterQuery, "SELECT * FROM backend WHERE level = 'error'")
+        XCTAssertEqual(filter.version, "v1")
+        XCTAssertEqual(filter.userId, "admin")
+        XCTAssertNotNil(filter.timeFilter)
+    }
+
+    func testFilterMinimalFields() throws {
+        let json = """
+        {
+            "filter_name": "Quick query",
+            "stream_name": "logs",
+            "query": {"filter_type": "sql"}
+        }
+        """.data(using: .utf8)!
+
+        let filter = try JSONDecoder().decode(ParseableFilter.self, from: json)
+        XCTAssertNil(filter.filterId)
+        XCTAssertEqual(filter.filterName, "Quick query")
+        XCTAssertEqual(filter.streamName, "logs")
+        XCTAssertEqual(filter.query.filterType, "sql")
+        XCTAssertNil(filter.query.filterQuery)
+        XCTAssertNil(filter.version)
+        XCTAssertNil(filter.userId)
+        XCTAssertNil(filter.timeFilter)
+    }
+
+    func testFilterArrayDecoding() throws {
+        let json = """
+        [
+            {"filter_name": "A", "stream_name": "s1", "query": {"filter_type": "sql"}},
+            {"filter_name": "B", "stream_name": "s2", "query": {"filter_type": "filter"}}
+        ]
+        """.data(using: .utf8)!
+
+        let filters = try JSONDecoder().decode([ParseableFilter].self, from: json)
+        XCTAssertEqual(filters.count, 2)
+        XCTAssertEqual(filters[0].filterName, "A")
+        XCTAssertEqual(filters[1].query.filterType, "filter")
+    }
+
+    func testFilterEncodingForCreate() throws {
+        let filter = ParseableFilter(
+            filterName: "My filter",
+            streamName: "app-logs",
+            query: FilterQuery(filterType: "sql", filterQuery: "SELECT * FROM \"app-logs\"")
+        )
+        let data = try JSONEncoder().encode(filter)
+        let dict = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        XCTAssertEqual(dict["filter_name"] as? String, "My filter")
+        XCTAssertEqual(dict["stream_name"] as? String, "app-logs")
+        let query = dict["query"] as! [String: Any]
+        XCTAssertEqual(query["filter_type"] as? String, "sql")
+        XCTAssertEqual(query["filter_query"] as? String, "SELECT * FROM \"app-logs\"")
+    }
+
+    func testFilterUnknownFieldsTolerated() throws {
+        let json = """
+        {
+            "filter_id": "xyz",
+            "filter_name": "Test",
+            "stream_name": "logs",
+            "query": {"filter_type": "sql", "filter_query": "SELECT 1", "some_new_field": true},
+            "brand_new_field": 42
+        }
+        """.data(using: .utf8)!
+
+        let filter = try JSONDecoder().decode(ParseableFilter.self, from: json)
+        XCTAssertEqual(filter.filterId, "xyz")
+        XCTAssertEqual(filter.filterName, "Test")
+    }
+
+    func testFilterQueryWithBuilder() throws {
+        let json = """
+        {
+            "filter_type": "filter",
+            "filter_query": null,
+            "filter_builder": {"rules": [{"field": "level", "operator": "=", "value": "error"}]}
+        }
+        """.data(using: .utf8)!
+
+        let query = try JSONDecoder().decode(FilterQuery.self, from: json)
+        XCTAssertEqual(query.filterType, "filter")
+        XCTAssertNil(query.filterQuery)
+        XCTAssertNotNil(query.filterBuilder)
+    }
+
+    func testFilterIdentifiableWithId() {
+        let filter = ParseableFilter(
+            filterId: "server-id-1",
+            filterName: "Test",
+            streamName: "logs",
+            query: FilterQuery(filterType: "sql")
+        )
+        XCTAssertEqual(filter.id, "server-id-1")
+    }
+
+    func testFilterIdentifiableFallback() {
+        let filter = ParseableFilter(
+            filterName: "Test",
+            streamName: "logs",
+            query: FilterQuery(filterType: "sql")
+        )
+        XCTAssertEqual(filter.id, "logs:Test")
+    }
+
     // MARK: - URL scheme validation
 
     func testValidateURLAcceptsHTTPS() {

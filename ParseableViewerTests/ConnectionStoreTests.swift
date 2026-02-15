@@ -9,7 +9,6 @@ final class ConnectionStoreTests: XCTestCase {
         // Clean up any test data from UserDefaults
         UserDefaults.standard.removeObject(forKey: "parseable_connections")
         UserDefaults.standard.removeObject(forKey: "parseable_active_connection_id")
-        UserDefaults.standard.removeObject(forKey: "parseable_saved_queries")
     }
 
     // MARK: - Active connection ID
@@ -83,78 +82,4 @@ final class ConnectionStoreTests: XCTestCase {
         }
     }
 
-    // MARK: - SavedQueryStore
-
-    func testSavedQueryStoreLoadEmpty() {
-        UserDefaults.standard.removeObject(forKey: "parseable_saved_queries")
-        let queries = SavedQueryStore.load()
-        XCTAssertTrue(queries.isEmpty)
-    }
-
-    func testSavedQueryStoreRoundTrip() {
-        let query = SavedQuery(
-            name: "Recent Errors",
-            sql: "SELECT * FROM logs WHERE level = 'error' LIMIT 100",
-            stream: "backend-logs"
-        )
-        SavedQueryStore.save([query])
-        let loaded = SavedQueryStore.load()
-        XCTAssertEqual(loaded.count, 1)
-        XCTAssertEqual(loaded[0].name, "Recent Errors")
-        XCTAssertEqual(loaded[0].sql, "SELECT * FROM logs WHERE level = 'error' LIMIT 100")
-        XCTAssertEqual(loaded[0].stream, "backend-logs")
-    }
-
-    func testSavedQueryStoreRoundTripWithColumnConfig() {
-        let query = SavedQuery(
-            name: "With Columns",
-            sql: "SELECT * FROM logs",
-            stream: "backend-logs",
-            columnOrder: ["level", "message", "p_timestamp"],
-            hiddenColumns: ["p_metadata"]
-        )
-        SavedQueryStore.save([query])
-        let loaded = SavedQueryStore.load()
-        XCTAssertEqual(loaded.count, 1)
-        XCTAssertEqual(loaded[0].columnOrder, ["level", "message", "p_timestamp"])
-        XCTAssertEqual(loaded[0].hiddenColumns, ["p_metadata"])
-    }
-
-    func testSavedQueryStoreBackwardCompatibility() {
-        // Simulate a saved query without column fields (pre-feature data)
-        let json = """
-        [{"id":"00000000-0000-0000-0000-000000000001","name":"Old Query","sql":"SELECT 1","stream":"s","createdAt":0}]
-        """
-        UserDefaults.standard.set(json.data(using: .utf8), forKey: "parseable_saved_queries")
-        let loaded = SavedQueryStore.load()
-        XCTAssertEqual(loaded.count, 1)
-        XCTAssertEqual(loaded[0].name, "Old Query")
-        XCTAssertNil(loaded[0].columnOrder)
-        XCTAssertNil(loaded[0].hiddenColumns)
-    }
-
-    func testSavedQueryStoreMultiple() {
-        let q1 = SavedQuery(name: "Query 1", sql: "SELECT 1", stream: "s1")
-        let q2 = SavedQuery(name: "Query 2", sql: "SELECT 2", stream: "s2")
-        SavedQueryStore.save([q1, q2])
-        let loaded = SavedQueryStore.load()
-        XCTAssertEqual(loaded.count, 2)
-    }
-
-    // MARK: - SavedQuery model
-
-    func testSavedQueryIdentifiable() {
-        let q1 = SavedQuery(name: "A", sql: "SELECT 1", stream: "s")
-        let q2 = SavedQuery(name: "B", sql: "SELECT 2", stream: "s")
-        XCTAssertNotEqual(q1.id, q2.id)
-    }
-
-    func testSavedQueryHashable() {
-        let q1 = SavedQuery(name: "A", sql: "SELECT 1", stream: "s")
-        var set = Set<SavedQuery>()
-        set.insert(q1)
-        XCTAssertEqual(set.count, 1)
-        set.insert(q1) // Same query again
-        XCTAssertEqual(set.count, 1)
-    }
 }

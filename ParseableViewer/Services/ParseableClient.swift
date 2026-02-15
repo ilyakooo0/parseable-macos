@@ -281,4 +281,23 @@ final class ParseableClient: Sendable {
         let data = try await performRequest(method: "GET", path: "/api/v1/user")
         return try JSONDecoder().decode([UserInfo].self, from: data)
     }
+
+    // MARK: - Filters
+
+    func listFilters() async throws -> [ParseableFilter] {
+        let data = try await performRequest(method: "GET", path: "/api/v1/filters")
+        if data.isEmpty { return [] }
+        return try JSONDecoder().decode([ParseableFilter].self, from: data)
+    }
+
+    func createFilter(_ filter: ParseableFilter) async throws -> ParseableFilter {
+        let body = try JSONEncoder().encode(filter)
+        let data = try await performRequest(method: "POST", path: "/api/v1/filters", body: body)
+        return try JSONDecoder().decode(ParseableFilter.self, from: data)
+    }
+
+    func deleteFilter(id: String) async throws {
+        let encoded = try Self.encodePathComponent(id)
+        _ = try await performRequest(method: "DELETE", path: "/api/v1/filters/\(encoded)")
+    }
 }
