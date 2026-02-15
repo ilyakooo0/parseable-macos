@@ -208,17 +208,23 @@ struct ConnectionStatusView: View {
                         .fill(appState.isConnected ? .green : .red)
                         .frame(width: 8, height: 8)
                         .accessibilityLabel(appState.isConnected ? "Connected" : "Disconnected")
-                    Text(connection.name)
-                        .font(.headline)
-                        .lineLimit(1)
-                    Spacer()
-                    Menu {
-                        ForEach(appState.connections) { conn in
-                            Button(conn.name) {
+                    Picker("Connection", selection: Binding<UUID>(
+                        get: { connection.id },
+                        set: { newID in
+                            if let conn = appState.connections.first(where: { $0.id == newID }) {
                                 Task { await appState.connect(to: conn) }
                             }
                         }
-                        Divider()
+                    )) {
+                        ForEach(appState.connections) { conn in
+                            Text(conn.name).tag(conn.id)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .accessibilityLabel("Connection selector")
+                    Spacer()
+                    Menu {
                         Button("Add Connection...") {
                             appState.editingConnection = nil
                             appState.showConnectionSheet = true
@@ -232,16 +238,12 @@ struct ConnectionStatusView: View {
                             appState.disconnect()
                         }
                     } label: {
-                        Image(systemName: "chevron.up.chevron.down")
+                        Image(systemName: "gear")
                     }
                     .menuStyle(.borderlessButton)
                     .frame(width: 24)
                     .accessibilityLabel("Connection options")
                 }
-                Text(connection.url)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
             } else if appState.isConnecting {
                 HStack {
                     ProgressView()
