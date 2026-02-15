@@ -54,6 +54,7 @@ struct LogTableView: View {
     let columns: [String]
     @Binding var selectedRecord: LogRecord?
     var onCellFilter: ((_ column: String, _ value: JSONValue?, _ exclude: Bool) -> Void)?
+    var onMoveColumn: ((String, String) -> Void)?
     @State private var sortColumn: String?
     @State private var sortAscending = false
     @State private var selectedIndex: Int?
@@ -96,7 +97,8 @@ struct LogTableView: View {
                                 sortColumn: $sortColumn,
                                 sortAscending: $sortAscending,
                                 columnWidths: $columnWidths,
-                                records: records
+                                records: records,
+                                onMoveColumn: onMoveColumn
                             )
                         }
                     }
@@ -197,6 +199,7 @@ struct LogHeaderView: View {
     @Binding var sortAscending: Bool
     @Binding var columnWidths: [String: CGFloat]
     let records: [LogRecord]
+    var onMoveColumn: ((String, String) -> Void)?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -238,6 +241,21 @@ struct LogHeaderView: View {
                 }
                 .frame(width: columnWidths[column] ?? 120, alignment: .leading)
                 .contextMenu {
+                    if let onMove = onMoveColumn {
+                        if column != columns.first {
+                            Button("Move Left") {
+                                let idx = columns.firstIndex(of: column)!
+                                onMove(column, columns[columns.index(before: idx)])
+                            }
+                        }
+                        if column != columns.last {
+                            Button("Move Right") {
+                                let idx = columns.firstIndex(of: column)!
+                                onMove(column, columns[columns.index(after: idx)])
+                            }
+                        }
+                        Divider()
+                    }
                     Button("Auto-fit Column") {
                         columnWidths[column] = idealColumnWidth(for: column, records: records)
                     }

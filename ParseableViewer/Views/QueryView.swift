@@ -7,6 +7,7 @@ struct QueryView: View {
     @State private var saveQueryName = ""
     @State private var exportError: String?
     @State private var showExportError = false
+    @State private var showColumnPopover = false
 
     var body: some View {
         @Bindable var vm = viewModel
@@ -178,6 +179,28 @@ struct QueryView: View {
                         }
 
                         Spacer()
+
+                        if !viewModel.columns.isEmpty {
+                            Button {
+                                showColumnPopover.toggle()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "eye")
+                                    Text("Columns")
+                                        .font(.caption)
+                                    if !viewModel.hiddenColumns.isEmpty {
+                                        Text("(\(viewModel.visibleColumns.count)/\(viewModel.columns.count))")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .accessibilityLabel("Manage column visibility and order")
+                            .help("Show, hide, and reorder columns")
+                            .popover(isPresented: $showColumnPopover, arrowEdge: .bottom) {
+                                ColumnManagerView(viewModel: viewModel)
+                            }
+                        }
                     }
                     .padding(6)
                 }
@@ -185,7 +208,7 @@ struct QueryView: View {
                 // Results table
                 LogTableView(
                     records: viewModel.filteredResults,
-                    columns: viewModel.columns,
+                    columns: viewModel.visibleColumns,
                     selectedRecord: $vm.selectedLogEntry,
                     onCellFilter: { column, value, exclude in
                         viewModel.addColumnFilter(column: column, value: value, exclude: exclude)
@@ -195,6 +218,9 @@ struct QueryView: View {
                                 stream: appState.selectedStream
                             )
                         }
+                    },
+                    onMoveColumn: { from, to in
+                        viewModel.moveColumn(from, to: to)
                     }
                 )
             }
@@ -286,7 +312,7 @@ struct QueryView: View {
 
     private func exportCSV() {
         let results = viewModel.results
-        let columns = viewModel.columns
+        let columns = viewModel.visibleColumns
         saveToFile(type: "csv") {
             QueryViewModel.buildCSV(records: results, columns: columns)
         }
@@ -316,5 +342,78 @@ struct QueryView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Column Manager Popover
+
+struct ColumnManagerView: View {
+    let viewModel: QueryViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Columns")
+                    .font(.headline)
+                Spacer()
+                if !viewModel.hiddenColumns.isEmpty || viewModel.columnOrder != viewModel.columns {
+                    Button("Reset") {
+                        viewModel.resetColumnConfig()
+                    }
+                    .font(.caption)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
+
+            Divider()
+
+            List {
+                ForEach(viewModel.columnOrder, id: \.self) { column in
+                    HStack {
+                        Button {
+                            viewModel.toggleColumnVisibility(column)
+                        } label: {
+                            Image(systemName: viewModel.hiddenColumns.contains(column)
+                                  ? "eye.slash" : "eye")
+                                .foregroundStyle(viewModel.hiddenColumns.contains(column)
+                                                 ? .secondary : .primary)
+                                .frame(width: 20)
+                        }
+                        .buttonStyle(.plain)
+                        .help(viewModel.hiddenColumns.contains(column) ? "Show column" : "Hide column")
+
+                        Text(column)
+                            .font(.system(.body, design: .monospaced))
+                            .lineLimit(1)
+                            .foregroundStyle(viewModel.hiddenColumns.contains(column)
+                                             ? .secondary : .primary)
+
+                        Spacer()
+
+                        Image(systemName: "line.3.horizontal")
+                            .foregroundStyle(.tertiary)
+                            .font(.caption)
+                    }
+                    .padding(.vertical, 2)
+                }
+                .onMove { source, destination in
+                    viewModel.moveColumn(from: source, to: destination)
+                }
+            }
+            .listStyle(.plain)
+
+            if !viewModel.hiddenColumns.isEmpty {
+                Divider()
+                Button("Show All Columns") {
+                    viewModel.showAllColumns()
+                }
+                .font(.caption)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            }
+        }
+        .frame(width: 280, height: min(CGFloat(viewModel.columnOrder.count) * 32 + 80, 400))
     }
 }

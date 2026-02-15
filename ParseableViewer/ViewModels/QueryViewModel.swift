@@ -8,6 +8,9 @@ final class QueryViewModel {
         didSet { updateFilteredResults() }
     }
     var columns: [String] = []
+    var columnOrder: [String] = []
+    var hiddenColumns: Set<String> = []
+    private var currentStream: String?
     var isLoading = false
     var errorMessage: String?
     var resultCount = 0
@@ -108,6 +111,94 @@ final class QueryViewModel {
         return timeRangeOption.dateRange().end
     }
 
+    var visibleColumns: [String] {
+        columnOrder.filter { !hiddenColumns.contains($0) }
+    }
+
+    func toggleColumnVisibility(_ column: String) {
+        if hiddenColumns.contains(column) {
+            hiddenColumns.remove(column)
+        } else {
+            // Don't allow hiding all columns
+            let visibleCount = columnOrder.count - hiddenColumns.count
+            if visibleCount > 1 {
+                hiddenColumns.insert(column)
+            }
+        }
+        saveColumnConfig()
+    }
+
+    func showAllColumns() {
+        hiddenColumns.removeAll()
+        saveColumnConfig()
+    }
+
+    func moveColumn(from source: IndexSet, to destination: Int) {
+        columnOrder.move(fromOffsets: source, toOffset: destination)
+        saveColumnConfig()
+    }
+
+    func moveColumn(_ column: String, to targetColumn: String) {
+        guard let fromIndex = columnOrder.firstIndex(of: column),
+              let toIndex = columnOrder.firstIndex(of: targetColumn),
+              fromIndex != toIndex else { return }
+        let item = columnOrder.remove(at: fromIndex)
+        columnOrder.insert(item, at: toIndex)
+        saveColumnConfig()
+    }
+
+    func resetColumnConfig() {
+        columnOrder = columns
+        hiddenColumns.removeAll()
+        saveColumnConfig()
+    }
+
+    // MARK: - Column Configuration Persistence
+
+    struct ColumnConfiguration: Codable {
+        var order: [String]
+        var hidden: Set<String>
+    }
+
+    private static func columnConfigKey(for stream: String) -> String {
+        "parseable_column_config_\(stream)"
+    }
+
+    private func saveColumnConfig() {
+        guard let stream = currentStream else { return }
+        let config = ColumnConfiguration(order: columnOrder, hidden: hiddenColumns)
+        if let data = try? JSONEncoder().encode(config) {
+            UserDefaults.standard.set(data, forKey: Self.columnConfigKey(for: stream))
+        }
+    }
+
+    static func loadColumnConfig(for stream: String) -> ColumnConfiguration? {
+        guard let data = UserDefaults.standard.data(forKey: columnConfigKey(for: stream)) else { return nil }
+        return try? JSONDecoder().decode(ColumnConfiguration.self, from: data)
+    }
+
+    func applyColumnConfig(extractedColumns: [String], stream: String?) {
+        columns = extractedColumns
+        currentStream = stream
+
+        guard let stream, let config = Self.loadColumnConfig(for: stream) else {
+            columnOrder = extractedColumns
+            hiddenColumns = []
+            return
+        }
+
+        // Merge saved order with actual columns: keep saved order for columns
+        // that still exist, then append any new columns at the end
+        let extractedSet = Set(extractedColumns)
+        var merged = config.order.filter { extractedSet.contains($0) }
+        let mergedSet = Set(merged)
+        for col in extractedColumns where !mergedSet.contains(col) {
+            merged.append(col)
+        }
+        columnOrder = merged
+        hiddenColumns = config.hidden.intersection(extractedSet)
+    }
+
     private(set) var filteredResults: [LogRecord] = []
 
     private func updateFilteredResults() {
@@ -181,8 +272,10 @@ final class QueryViewModel {
                 // for auto-generated queries where we control the LIMIT)
                 resultsTruncated = usedAutoLimit && results.count == limit
 
-                // Extract columns in a single pass, with priority fields first
-                columns = extractColumns(from: results)
+                // Extract columns in a single pass, with priority fields first,
+                // then apply any saved column configuration for this stream
+                let extracted = extractColumns(from: results)
+                applyColumnConfig(extractedColumns: extracted, stream: stream)
 
                 // Record in history
                 let entry = QueryHistoryEntry(sql: sql, resultCount: resultCount, duration: queryDuration ?? 0)
@@ -241,7 +334,7 @@ final class QueryViewModel {
     }
 
     func exportAsCSV() -> String {
-        Self.buildCSV(records: results, columns: columns)
+        Self.buildCSV(records: results, columns: visibleColumns)
     }
 
     /// Builds a CSV string from records and columns. Safe to call from any thread.
@@ -277,6 +370,9 @@ final class QueryViewModel {
     func clearResults() {
         results = []
         columns = []
+        columnOrder = []
+        hiddenColumns = []
+        currentStream = nil
         resultCount = 0
         queryDuration = nil
         selectedLogEntry = nil
