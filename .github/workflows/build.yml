@@ -133,6 +133,37 @@ jobs:
           name: ParseableViewer-universal
           path: ParseableViewer-universal.zip
 
+  prerelease:
+    needs: create-universal
+    runs-on: macos-15
+    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create or update prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest Build
+          body: |
+            Automated prerelease build from commit ${{ github.sha }}.
+
+            **Branch:** ${{ github.ref_name }}
+            **Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+          prerelease: true
+          make_latest: false
+          files: |
+            artifacts/ParseableViewer-arm64/ParseableViewer-arm64.zip
+            artifacts/ParseableViewer-x86_64/ParseableViewer-x86_64.zip
+            artifacts/ParseableViewer-universal/ParseableViewer-universal.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   release:
     needs: create-universal
     runs-on: macos-15
