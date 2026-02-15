@@ -284,7 +284,10 @@ final class QueryViewModel {
         resultsTruncated = false
     }
 
-    func setDefaultQuery(stream: String, previousStream: String? = nil) {
+    /// Sets the default query for the given stream, returning `true` if the
+    /// query text was replaced (i.e. the user hadn't customized it).
+    @discardableResult
+    func setDefaultQuery(stream: String, previousStream: String? = nil) -> Bool {
         // Replace the query if it's empty or still matches the auto-generated
         // default for the previous stream. If the user edited the SQL, keep it.
         let shouldReplace: Bool
@@ -300,6 +303,7 @@ final class QueryViewModel {
         if shouldReplace {
             sqlQuery = "SELECT * FROM \(Self.escapeSQLIdentifier(stream)) ORDER BY p_timestamp DESC LIMIT \(queryLimit)"
         }
+        return shouldReplace
     }
 
     /// Escapes a SQL identifier by doubling internal double-quotes, then wrapping in double-quotes.

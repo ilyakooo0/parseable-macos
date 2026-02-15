@@ -197,12 +197,28 @@ struct QueryView: View {
         .onChange(of: appState.selectedStream) { oldValue, newValue in
             viewModel.clearResults()
             if let stream = newValue {
-                viewModel.setDefaultQuery(stream: stream, previousStream: oldValue)
+                let didSetDefault = viewModel.setDefaultQuery(stream: stream, previousStream: oldValue)
+                if didSetDefault {
+                    Task {
+                        await viewModel.executeQuery(
+                            client: appState.client,
+                            stream: stream
+                        )
+                    }
+                }
             }
         }
         .onAppear {
             if let stream = appState.selectedStream {
-                viewModel.setDefaultQuery(stream: stream)
+                let didSetDefault = viewModel.setDefaultQuery(stream: stream)
+                if didSetDefault && viewModel.results.isEmpty {
+                    Task {
+                        await viewModel.executeQuery(
+                            client: appState.client,
+                            stream: stream
+                        )
+                    }
+                }
             }
         }
         .onDisappear {
