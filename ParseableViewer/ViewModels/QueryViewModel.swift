@@ -172,10 +172,7 @@ final class QueryViewModel {
 
     /// Rewrites the SELECT clause of `sqlQuery` to reflect the current `visibleColumns`.
     func updateSQLColumns() {
-        let pattern = #"(?i)^(\s*SELECT\s+(?:DISTINCT\s+)?)(.+?)(\s+FROM\b)"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else { return }
-        let range = NSRange(sqlQuery.startIndex..<sqlQuery.endIndex, in: sqlQuery)
-        guard let match = regex.firstMatch(in: sqlQuery, range: range) else { return }
+        guard let range = SQLTokenizer.selectColumnListRange(in: sqlQuery) else { return }
 
         let visible = visibleColumns
         guard !visible.isEmpty else { return }
@@ -187,10 +184,7 @@ final class QueryViewModel {
             newColumnList = visible.map { Self.escapeSQLIdentifier($0) }.joined(separator: ", ")
         }
 
-        var result = sqlQuery
-        let group2Range = Range(match.range(at: 2), in: sqlQuery)!
-        result.replaceSubrange(group2Range, with: newColumnList)
-        sqlQuery = result
+        sqlQuery.replaceSubrange(range, with: newColumnList)
     }
 
     // MARK: - Column Configuration Persistence
