@@ -232,7 +232,7 @@ struct ConnectionStatusView: View {
                             appState.disconnect()
                         }
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Image(systemName: "chevron.up.chevron.down")
                     }
                     .menuStyle(.borderlessButton)
                     .frame(width: 24)
