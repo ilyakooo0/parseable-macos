@@ -50,6 +50,8 @@ targets:
       base:
         SWIFT_VERSION: "5.9"
         MACOSX_DEPLOYMENT_TARGET: "14.0"
+        BUNDLE_LOADER: "$(BUILT_PRODUCTS_DIR)/Parseable Viewer.app/Contents/MacOS/Parseable Viewer"
+        TEST_HOST: "$(BUNDLE_LOADER)"
     dependencies:
       - target: ParseableViewer
 

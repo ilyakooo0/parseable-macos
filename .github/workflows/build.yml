@@ -32,23 +32,10 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Build for Testing
-        if: matrix.arch == 'arm64'
-        run: |
-          xcodebuild build-for-testing \
-            -project ParseableViewer.xcodeproj \
-            -scheme ParseableViewer \
-            -configuration Debug \
-            -destination 'platform=macOS,arch=arm64' \
-            -derivedDataPath build \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
-
       - name: Run Tests
         if: matrix.arch == 'arm64'
         run: |
-          xcodebuild test-without-building \
+          xcodebuild test \
             -project ParseableViewer.xcodeproj \
             -scheme ParseableViewer \
             -configuration Debug \
@@ -120,7 +107,7 @@ jobs:
           cp -R "arm64_app/Parseable Viewer.app" "universal_app/Parseable Viewer.app"
 
           # Find the main executable name
-          EXEC_NAME="ParseableViewer"
+          EXEC_NAME="Parseable Viewer"
           ARM64_EXEC="arm64_app/Parseable Viewer.app/Contents/MacOS/$EXEC_NAME"
           X86_EXEC="x86_64_app/Parseable Viewer.app/Contents/MacOS/$EXEC_NAME"
           UNIVERSAL_EXEC="universal_app/Parseable Viewer.app/Contents/MacOS/$EXEC_NAME"
