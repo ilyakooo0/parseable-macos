@@ -48,6 +48,100 @@ func levelColor(for value: String) -> Color {
     }
 }
 
+// MARK: - Severity Row Tinting
+
+/// Semantic severity levels for row background tinting.
+enum SeverityLevel {
+    case fatal
+    case error
+    case warning
+    case info
+    case debug
+    case trace
+    case unknown
+}
+
+/// Column names (lowercased) that commonly hold a severity / log-level value.
+private let severityColumnNames: Set<String> = [
+    "level", "severity", "log_level", "loglevel", "log.level",
+    "p_level", "severity_text", "levelname", "log_severity",
+    "priority", "syslog_severity", "msg_severity", "verbosity",
+    "otel.severity", "severity_number",
+]
+
+/// Maps a raw severity string to a ``SeverityLevel``.
+func parseSeverity(from value: String) -> SeverityLevel {
+    let lower = value.trimmingCharacters(in: .whitespaces).lowercased()
+
+    // Try well-known textual levels first.
+    switch lower {
+    // Fatal / Critical
+    case "fatal", "critical", "panic", "emerg", "emergency", "alert", "crit":
+        return .fatal
+    // Error
+    case "error", "err", "failure", "fail", "severe":
+        return .error
+    // Warning
+    case "warn", "warning", "caution":
+        return .warning
+    // Info / Notice
+    case "info", "information", "informational", "notice":
+        return .info
+    // Debug
+    case "debug", "dbg", "verbose":
+        return .debug
+    // Trace
+    case "trace", "finest", "finer", "fine", "all":
+        return .trace
+    default:
+        break
+    }
+
+    // Try numeric syslog severity (RFC 5424): 0=Emergency … 7=Debug.
+    if let num = Int(lower) {
+        switch num {
+        case 0...1: return .fatal   // Emergency, Alert
+        case 2:     return .fatal   // Critical
+        case 3:     return .error   // Error
+        case 4:     return .warning // Warning
+        case 5:     return .info    // Notice
+        case 6:     return .info    // Informational
+        case 7:     return .debug   // Debug
+        default:    break
+        }
+    }
+
+    return .unknown
+}
+
+/// Extracts the severity level from a log record by checking common column names.
+func extractSeverity(from record: LogRecord) -> SeverityLevel {
+    for (key, value) in record {
+        if severityColumnNames.contains(key.lowercased()) {
+            let str: String
+            switch value {
+            case .string(let s): str = s
+            case .int(let i):    str = String(i)
+            default:             continue
+            }
+            let level = parseSeverity(from: str)
+            if level != .unknown { return level }
+        }
+    }
+    return .unknown
+}
+
+/// Returns a subtle background tint color for a severity level.
+/// Info, debug, trace, and unknown levels return `nil` (no tint).
+func severityRowTint(for level: SeverityLevel) -> Color? {
+    switch level {
+    case .fatal:   return Color.red.opacity(0.12)
+    case .error:   return Color.red.opacity(0.07)
+    case .warning: return Color.orange.opacity(0.07)
+    case .info, .debug, .trace, .unknown: return nil
+    }
+}
+
 // MARK: - LogTableView
 
 struct LogTableView: View {
@@ -470,16 +564,22 @@ struct LogRowView: View {
                     }
             }
         }
-        .background(
-            isSelected
-                ? Color.accentColor.opacity(0.2)
-                : (isAlternate ? Color.primary.opacity(0.02) : Color.clear)
-        )
+        .background {
+            if isSelected {
+                Color.accentColor.opacity(0.2)
+            } else if let tint = severityRowTint(for: extractSeverity(from: record)) {
+                tint
+            } else if isAlternate {
+                Color.primary.opacity(0.02)
+            } else {
+                Color.clear
+            }
+        }
     }
 
     private func colorForValue(column: String, value: JSONValue?) -> Color {
         guard let value else { return .secondary }
-        if column == "level" || column == "severity" || column == "log_level" {
+        if severityColumnNames.contains(column.lowercased()) {
             return levelColor(for: value.displayString)
         }
         return .primary
