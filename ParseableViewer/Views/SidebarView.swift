@@ -81,10 +81,10 @@ struct SidebarView: View {
                         }
                     }
 
-                    if !appState.savedQueries.isEmpty {
-                        Section("Saved Queries") {
-                            ForEach(appState.savedQueries) { query in
-                                SavedQueryRow(query: query)
+                    if !appState.filters.isEmpty {
+                        Section("Filters") {
+                            ForEach(appState.filters) { filter in
+                                FilterRow(filter: filter)
                             }
                         }
                     }
@@ -265,32 +265,47 @@ struct StreamRowView: View {
     }
 }
 
-struct SavedQueryRow: View {
+struct FilterRow: View {
     @Environment(AppState.self) private var appState
-    let query: SavedQuery
+    let filter: ParseableFilter
+    @State private var isDeleting = false
 
     private var streamExists: Bool {
-        appState.streams.contains { $0.name == query.stream }
+        appState.streams.contains { $0.name == filter.streamName }
+    }
+
+    private var isSQLFilter: Bool {
+        filter.query.filterType == "sql"
     }
 
     var body: some View {
         Button {
-            appState.selectedStream = query.stream
-            appState.pendingSavedQuery = query
+            appState.selectedStream = filter.streamName
+            if let sql = filter.query.filterQuery {
+                appState.pendingFilterSQL = sql
+            }
             appState.currentTab = .query
         } label: {
             HStack {
                 Image(systemName: "bookmark")
                     .foregroundStyle(streamExists ? .orange : .secondary)
                 VStack(alignment: .leading) {
-                    Text(query.name)
+                    Text(filter.filterName)
                         .lineLimit(1)
                     HStack(spacing: 4) {
-                        Text(query.stream)
+                        Text(filter.streamName)
+                        if !isSQLFilter {
+                            Text(filter.query.filterType)
+                                .font(.caption2)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(.quaternary)
+                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                        }
                         if !streamExists {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundStyle(.orange)
-                                .help("Stream \"\(query.stream)\" no longer exists")
+                                .help("Stream \"\(filter.streamName)\" no longer exists")
                         }
                     }
                     .font(.caption2)
@@ -301,8 +316,18 @@ struct SavedQueryRow: View {
         .buttonStyle(.plain)
         .contextMenu {
             Button("Delete", role: .destructive) {
-                appState.removeSavedQuery(query)
+                guard !isDeleting else { return }
+                isDeleting = true
+                Task {
+                    do {
+                        try await appState.deleteFilter(filter)
+                    } catch {
+                        appState.showErrorMessage(ParseableError.userFriendlyMessage(for: error))
+                    }
+                    isDeleting = false
+                }
             }
+            .disabled(isDeleting)
         }
     }
 }

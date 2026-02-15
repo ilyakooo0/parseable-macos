@@ -32,10 +32,11 @@ final class AppState {
     var errorMessage: String?
     var showError = false
 
-    // MARK: - Saved Queries
-    var savedQueries: [SavedQuery] = []
-    /// Set by sidebar when user clicks a saved query; consumed by QueryView.
-    var pendingSavedQuery: SavedQuery?
+    // MARK: - Filters
+    var filters: [ParseableFilter] = []
+    var isLoadingFilters = false
+    /// Set by sidebar when user clicks a filter; consumed by QueryView.
+    var pendingFilterSQL: String?
 
     // MARK: - Query Refresh
     /// Incremented by the Cmd+R shortcut; QueryView observes changes to re-execute the current query.
@@ -76,7 +77,6 @@ final class AppState {
 
     init() {
         connections = ConnectionStore.loadConnections()
-        savedQueries = SavedQueryStore.load()
 
         networkMonitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor [weak self] in
@@ -127,11 +127,13 @@ final class AppState {
 
             ConnectionStore.saveActiveConnectionID(connection.id)
 
-            // Load server info and streams (best-effort; don't fail the connection)
+            // Load server info, streams, and filters (best-effort; don't fail the connection)
             async let about = newClient.getAbout()
             async let streamList = newClient.listStreams()
+            async let filterList = newClient.listFilters()
 
             self.serverAbout = try? await about
+            self.filters = (try? await filterList) ?? []
             do {
                 self.streams = try await streamList
                 self.streamLoadError = nil
@@ -165,6 +167,7 @@ final class AppState {
         streams = []
         selectedStream = nil
         serverAbout = nil
+        filters = []
         ConnectionStore.saveActiveConnectionID(nil)
     }
 
@@ -226,27 +229,38 @@ final class AppState {
         if selectedStream == name {
             selectedStream = nil
         }
-        // Remove saved queries that referenced the deleted stream
-        let orphaned = savedQueries.filter { $0.stream == name }
-        if !orphaned.isEmpty {
-            savedQueries.removeAll { $0.stream == name }
-            SavedQueryStore.save(savedQueries)
-        }
+        await refreshFilters()
         await refreshStreams()
     }
 
-    // MARK: - Saved Queries
+    // MARK: - Filters
 
     @MainActor
-    func addSavedQuery(_ query: SavedQuery) {
-        savedQueries.append(query)
-        SavedQueryStore.save(savedQueries)
+    func refreshFilters() async {
+        guard let client else { return }
+        isLoadingFilters = true
+        filters = (try? await client.listFilters()) ?? []
+        isLoadingFilters = false
     }
 
     @MainActor
-    func removeSavedQuery(_ query: SavedQuery) {
-        savedQueries.removeAll { $0.id == query.id }
-        SavedQueryStore.save(savedQueries)
+    func saveFilter(name: String, sql: String, stream: String) async throws {
+        guard let client else { throw ParseableError.notConnected }
+        let filter = ParseableFilter(
+            filterName: name,
+            streamName: stream,
+            query: FilterQuery(filterType: "sql", filterQuery: sql)
+        )
+        let saved = try await client.createFilter(filter)
+        filters.append(saved)
+    }
+
+    @MainActor
+    func deleteFilter(_ filter: ParseableFilter) async throws {
+        guard let client else { throw ParseableError.notConnected }
+        guard let filterId = filter.filterId else { return }
+        try await client.deleteFilter(id: filterId)
+        filters.removeAll { $0.id == filter.id }
     }
 
     // MARK: - Error Handling
