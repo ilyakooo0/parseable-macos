@@ -14,6 +14,12 @@ final class LiveTailViewModel {
     var droppedCount = 0
     private(set) var lastPollTime: Date?
 
+    // Column management
+    var columns: [String] = []
+    var columnOrder: [String] = []
+    var hiddenColumns: Set<String> = []
+    private var currentStream: String?
+
     // nonisolated(unsafe) so deinit can invalidate the timer.
     // Only mutated from @MainActor methods (start/stop).
     nonisolated(unsafe) private var timer: Timer?
@@ -82,6 +88,10 @@ final class LiveTailViewModel {
         consecutiveErrors = 0
         lastPollTime = nil
         lastTimestamp = Date()
+        columns = []
+        columnOrder = []
+        hiddenColumns = []
+        currentStream = stream
 
         timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -106,6 +116,126 @@ final class LiveTailViewModel {
         entries = []
         seenFingerprints = []
         droppedCount = 0
+        columns = []
+        columnOrder = []
+        hiddenColumns = []
+    }
+
+    // MARK: - Column Management
+
+    var visibleColumns: [String] {
+        columnOrder.filter { !hiddenColumns.contains($0) }
+    }
+
+    func toggleColumnVisibility(_ column: String) {
+        if hiddenColumns.contains(column) {
+            hiddenColumns.remove(column)
+        } else {
+            let visibleCount = columnOrder.count - hiddenColumns.count
+            if visibleCount > 1 {
+                hiddenColumns.insert(column)
+            }
+        }
+        saveColumnConfig()
+    }
+
+    func showAllColumns() {
+        hiddenColumns.removeAll()
+        saveColumnConfig()
+    }
+
+    func moveColumn(from source: IndexSet, to destination: Int) {
+        columnOrder.move(fromOffsets: source, toOffset: destination)
+        saveColumnConfig()
+    }
+
+    func moveColumn(_ column: String, to targetColumn: String) {
+        guard let fromIndex = columnOrder.firstIndex(of: column),
+              let toIndex = columnOrder.firstIndex(of: targetColumn),
+              fromIndex != toIndex else { return }
+        let item = columnOrder.remove(at: fromIndex)
+        columnOrder.insert(item, at: toIndex)
+        saveColumnConfig()
+    }
+
+    func resetColumnConfig() {
+        columnOrder = columns
+        hiddenColumns.removeAll()
+        saveColumnConfig()
+    }
+
+    // MARK: - Column Configuration Persistence
+
+    private static func columnConfigKey(for stream: String) -> String {
+        "parseable_livetail_column_config_\(stream)"
+    }
+
+    private func saveColumnConfig() {
+        guard let stream = currentStream else { return }
+        let config = QueryViewModel.ColumnConfiguration(order: columnOrder, hidden: hiddenColumns)
+        if let data = try? JSONEncoder().encode(config) {
+            UserDefaults.standard.set(data, forKey: Self.columnConfigKey(for: stream))
+        }
+    }
+
+    private static func loadColumnConfig(for stream: String) -> QueryViewModel.ColumnConfiguration? {
+        guard let data = UserDefaults.standard.data(forKey: columnConfigKey(for: stream)) else { return nil }
+        return try? JSONDecoder().decode(QueryViewModel.ColumnConfiguration.self, from: data)
+    }
+
+    // MARK: - Column Extraction
+
+    private func extractColumns(from records: [LogRecord]) -> [String] {
+        let priorityFields = ["p_timestamp", "p_tags", "p_metadata", "level", "severity", "message", "msg"]
+        var allKeys = Set<String>()
+        for record in records {
+            allKeys.formUnion(record.keys)
+        }
+
+        var ordered: [String] = []
+        for field in priorityFields {
+            if allKeys.remove(field) != nil {
+                ordered.append(field)
+            }
+        }
+        ordered.append(contentsOf: allKeys.sorted())
+        return ordered
+    }
+
+    private func updateColumns(stream: String) {
+        let allRecords = entries.map { $0.record }
+        let extracted = extractColumns(from: allRecords)
+
+        if columns.isEmpty {
+            // First time — apply saved config
+            columns = extracted
+            currentStream = stream
+
+            if let config = Self.loadColumnConfig(for: stream) {
+                let extractedSet = Set(extracted)
+                var merged = config.order.filter { extractedSet.contains($0) }
+                let mergedSet = Set(merged)
+                for col in extracted where !mergedSet.contains(col) {
+                    merged.append(col)
+                }
+                columnOrder = merged
+                hiddenColumns = config.hidden.intersection(extractedSet)
+            } else {
+                columnOrder = extracted
+                hiddenColumns = []
+            }
+        } else {
+            // Merge: keep existing order, append any new columns
+            let existingSet = Set(columnOrder)
+            var newCols = [String]()
+            for col in extracted where !existingSet.contains(col) {
+                newCols.append(col)
+            }
+            if !newCols.isEmpty {
+                columns.append(contentsOf: newCols)
+                columnOrder.append(contentsOf: newCols)
+            }
+        }
     }
 
     private func poll(client: ParseableClient, stream: String) async {
@@ -153,6 +283,8 @@ final class LiveTailViewModel {
                     // and ensure dropped entries can be re-detected if they reappear.
                     seenFingerprints = Set(entries.map { Self.fingerprint(for: $0.record) })
                 }
+
+                updateColumns(stream: stream)
             }
 
             lastTimestamp = now
