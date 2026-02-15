@@ -227,16 +227,21 @@ final class ParseableClient: Sendable {
             return []
         }
 
-        // Handle both response formats:
-        // 1. Wrapped: {"records": [...], "fields": [...]}
-        // 2. Direct array: [...]
-        if let wrapped = try? JSONDecoder().decode(QueryResponse.self, from: responseData) {
-            return wrapped.records
-        }
-        do {
-            return try JSONDecoder().decode([LogRecord].self, from: responseData)
-        } catch {
-            throw ParseableError.decodingError("Unexpected query response format")
+        // Peek at the first non-whitespace byte to choose the decoder path:
+        // '{' → wrapped response, '[' → direct array.
+        let firstByte = responseData.first(where: { $0 != 0x20 && $0 != 0x0A && $0 != 0x0D && $0 != 0x09 })
+        if firstByte == 0x7B { // '{'
+            do {
+                return try JSONDecoder().decode(QueryResponse.self, from: responseData).records
+            } catch {
+                throw ParseableError.decodingError("Unexpected query response format")
+            }
+        } else {
+            do {
+                return try JSONDecoder().decode([LogRecord].self, from: responseData)
+            } catch {
+                throw ParseableError.decodingError("Unexpected query response format")
+            }
         }
     }
 
