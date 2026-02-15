@@ -97,9 +97,9 @@ struct LogTableView: View {
     private func rebuildSort() {
         if let sortColumn {
             cachedSorted = records.sorted { a, b in
-                let aVal = a[sortColumn]?.displayString ?? ""
-                let bVal = b[sortColumn]?.displayString ?? ""
-                return sortAscending ? aVal < bVal : aVal > bVal
+                let aVal = a[sortColumn] ?? .null
+                let bVal = b[sortColumn] ?? .null
+                return sortAscending ? aVal < bVal : bVal < aVal
             }
         } else {
             cachedSorted = records

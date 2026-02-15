@@ -268,8 +268,20 @@ final class QueryViewModel {
         return value
     }
 
-    func setDefaultQuery(stream: String) {
+    func setDefaultQuery(stream: String, previousStream: String? = nil) {
+        // Replace the query if it's empty or still matches the auto-generated
+        // default for the previous stream. If the user edited the SQL, keep it.
+        let shouldReplace: Bool
         if sqlQuery.isEmpty {
+            shouldReplace = true
+        } else if let prev = previousStream {
+            let prevPrefix = "SELECT * FROM \(Self.escapeSQLIdentifier(prev))"
+            shouldReplace = sqlQuery.hasPrefix(prevPrefix)
+        } else {
+            shouldReplace = false
+        }
+
+        if shouldReplace {
             sqlQuery = "SELECT * FROM \(Self.escapeSQLIdentifier(stream)) ORDER BY p_timestamp DESC LIMIT \(queryLimit)"
         }
     }

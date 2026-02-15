@@ -1,7 +1,7 @@
 import Foundation
 
 /// A type-safe representation of arbitrary JSON values.
-enum JSONValue: Codable, Hashable, Sendable {
+enum JSONValue: Codable, Hashable, Sendable, Comparable {
     case null
     case bool(Bool)
     case int(Int)
@@ -150,6 +150,26 @@ enum JSONValue: Codable, Hashable, Sendable {
             }
         }
         return result
+    }
+
+    /// Type-aware comparison: numbers compare numerically, strings
+    /// lexicographically, nulls sort first, bools sort false < true.
+    /// Cross-type comparisons fall back to displayString.
+    static func < (lhs: JSONValue, rhs: JSONValue) -> Bool {
+        switch (lhs, rhs) {
+        case (.null, .null): return false
+        case (.null, _): return true
+        case (_, .null): return false
+        case (.bool(let a), .bool(let b)): return !a && b
+        case (.int(let a), .int(let b)): return a < b
+        case (.double(let a), .double(let b)): return a < b
+        case (.int(let a), .double(let b)): return Double(a) < b
+        case (.double(let a), .int(let b)): return a < Double(b)
+        case (.string(let a), .string(let b)):
+            return a.localizedStandardCompare(b) == .orderedAscending
+        default:
+            return lhs.displayString < rhs.displayString
+        }
     }
 }
 

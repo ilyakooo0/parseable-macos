@@ -194,9 +194,9 @@ struct QueryView: View {
                 )
             }
         }
-        .onChange(of: appState.selectedStream) { _, newValue in
+        .onChange(of: appState.selectedStream) { oldValue, newValue in
             if let stream = newValue {
-                viewModel.setDefaultQuery(stream: stream)
+                viewModel.setDefaultQuery(stream: stream, previousStream: oldValue)
             }
         }
         .onAppear {
