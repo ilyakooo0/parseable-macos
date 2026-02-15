@@ -342,6 +342,7 @@ final class LiveTailViewModel {
             errorMessage = nil
             consecutiveErrors = 0
         } catch {
+            guard !Task.isCancelled else { return }
             consecutiveErrors += 1
             if consecutiveErrors >= Self.maxConsecutiveErrors {
                 errorMessage = "\(ParseableError.userFriendlyMessage(for: error)) — stopped after \(consecutiveErrors) consecutive failures"

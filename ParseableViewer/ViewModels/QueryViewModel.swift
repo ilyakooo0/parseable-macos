@@ -341,10 +341,10 @@ final class QueryViewModel {
                 let entry = QueryHistoryEntry(sql: sql, resultCount: resultCount, duration: queryDuration ?? 0)
                 addToHistory(entry)
             } catch is CancellationError {
-                errorMessage = "Query cancelled"
-                results = []
-                columns = []
+                // Silently ignore — cancelQuery() or a new executeQuery() handles state
+                return
             } catch {
+                guard !Task.isCancelled else { return }
                 errorMessage = ParseableError.userFriendlyMessage(for: error)
                 if let serverError = error as? ParseableError,
                    case .serverError(_, let msg) = serverError,
