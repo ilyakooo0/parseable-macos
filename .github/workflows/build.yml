@@ -8,6 +8,10 @@ on:
   pull_request:
     branches: [master, main]
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: macos-15
