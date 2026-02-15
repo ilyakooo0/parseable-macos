@@ -78,6 +78,7 @@ struct AlertsView: View {
         guard let client = appState.client else { return }
         isLoading = true
         errorMessage = nil
+        alertConfig = nil
 
         do {
             alertConfig = try await client.getAlerts(stream: stream)

@@ -182,6 +182,11 @@ struct StreamDetailView: View {
         guard let client = appState.client else { return }
         isLoading = true
         errorMessage = nil
+        // Clear previous stream's data so it isn't shown under the new header
+        schema = nil
+        stats = nil
+        info = nil
+        retention = []
 
         // Fetch all stream data concurrently
         async let schemaResult = Result { try await client.getStreamSchema(stream: stream) }
