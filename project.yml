@@ -52,3 +52,20 @@ targets:
         MACOSX_DEPLOYMENT_TARGET: "14.0"
     dependencies:
       - target: ParseableViewer
+
+schemes:
+  ParseableViewer:
+    build:
+      targets:
+        ParseableViewer: all
+        ParseableViewerTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - ParseableViewerTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
