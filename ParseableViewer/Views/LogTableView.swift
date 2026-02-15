@@ -358,27 +358,27 @@ struct LogHeaderView: View {
         HStack(spacing: 0) {
             ForEach(columns, id: \.self) { column in
                 HStack(spacing: 0) {
-                    Button {
+                    HStack(spacing: 2) {
+                        Text(column)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                        if sortColumn == column {
+                            Image(systemName: sortAscending ? "chevron.up" : "chevron.down")
+                                .font(.caption2)
+                        }
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
                         if sortColumn == column {
                             sortAscending.toggle()
                         } else {
                             sortColumn = column
                             sortAscending = true
                         }
-                    } label: {
-                        HStack(spacing: 2) {
-                            Text(column)
-                                .font(.caption.weight(.semibold))
-                                .lineLimit(1)
-                            if sortColumn == column {
-                                Image(systemName: sortAscending ? "chevron.up" : "chevron.down")
-                                    .font(.caption2)
-                            }
-                        }
                     }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
+                    .accessibilityAddTraits(.isButton)
                     .accessibilityLabel(sortColumn == column
                         ? "Sort by \(column), \(sortAscending ? "ascending" : "descending")"
                         : "Sort by \(column)")
