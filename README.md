@@ -15,13 +15,19 @@ Browse log streams, run SQL queries, tail logs in real time, and inspect server 
 - **Alerts & Users** — View configured alert rules and user accounts on the connected server
 - **Server Info** — Health status, version, deployment mode, storage backend, and update availability at a glance
 
+## Install
+
+```bash
+brew install ilyakooo0/tap/parseable-viewer
+```
+
 ## Requirements
 
 - macOS 14.0+ (Sonoma)
 - Xcode 16+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 
-## Build
+## Build from source
 
 ```bash
 # Install XcodeGen (one-time)

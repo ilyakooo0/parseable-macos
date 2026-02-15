@@ -164,6 +164,40 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Update Homebrew cask
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          SHA_ARM64=$(shasum -a 256 artifacts/ParseableViewer-arm64/ParseableViewer-arm64.zip | awk '{print $1}')
+          SHA_X86_64=$(shasum -a 256 artifacts/ParseableViewer-x86_64/ParseableViewer-x86_64.zip | awk '{print $1}')
+          SHORT_SHA="${GITHUB_SHA::7}"
+
+          cat > /tmp/parseable-viewer.rb << CASK
+          cask "parseable-viewer" do
+            arch arm: "arm64", intel: "x86_64"
+
+            version "$SHORT_SHA"
+            sha256 arm: "$SHA_ARM64", intel: "$SHA_X86_64"
+
+            url "https://github.com/ilyakooo0/parseable-macos/releases/download/latest/ParseableViewer-#{arch}.zip"
+            name "Parseable Viewer"
+            desc "A macOS client for Parseable"
+            homepage "https://github.com/ilyakooo0/parseable-macos"
+
+            app "Parseable Viewer.app"
+          end
+          CASK
+
+          # Push updated cask to homebrew-tap
+          cd "$(mktemp -d)"
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/ilyakooo0/homebrew-tap.git" .
+          cp /tmp/parseable-viewer.rb Casks/parseable-viewer.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/parseable-viewer.rb
+          git commit -m "Update parseable-viewer to ${SHORT_SHA}"
+          git push
+
   release:
     needs: create-universal
     runs-on: macos-15
