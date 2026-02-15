@@ -274,6 +274,16 @@ final class QueryViewModel {
         return value
     }
 
+    func clearResults() {
+        results = []
+        columns = []
+        resultCount = 0
+        queryDuration = nil
+        selectedLogEntry = nil
+        errorMessage = nil
+        resultsTruncated = false
+    }
+
     func setDefaultQuery(stream: String, previousStream: String? = nil) {
         // Replace the query if it's empty or still matches the auto-generated
         // default for the previous stream. If the user edited the SQL, keep it.

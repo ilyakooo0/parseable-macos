@@ -173,6 +173,7 @@ struct LiveTailView: View {
             if viewModel.isRunning {
                 viewModel.stop()
             }
+            viewModel.clear()
         }
     }
 }

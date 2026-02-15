@@ -195,6 +195,7 @@ struct QueryView: View {
             }
         }
         .onChange(of: appState.selectedStream) { oldValue, newValue in
+            viewModel.clearResults()
             if let stream = newValue {
                 viewModel.setDefaultQuery(stream: stream, previousStream: oldValue)
             }
