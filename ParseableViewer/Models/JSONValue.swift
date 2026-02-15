@@ -111,3 +111,9 @@ enum JSONValue: Codable, Hashable, Sendable {
 }
 
 typealias LogRecord = [String: JSONValue]
+
+/// Wrapper for query responses that may contain records + fields metadata.
+struct QueryResponse: Codable {
+    let records: [LogRecord]
+    let fields: [String]?
+}

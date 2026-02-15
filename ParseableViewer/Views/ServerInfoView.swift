@@ -63,6 +63,15 @@ struct ServerInfoView: View {
                             if let port = about.grpcPort {
                                 InfoRow(label: "gRPC Port", value: String(port))
                             }
+                            if let llm = about.llmActive {
+                                InfoRow(label: "LLM Active", value: llm ? "Yes" : "No")
+                            }
+                            if let oidc = about.oidcActive {
+                                InfoRow(label: "OIDC Active", value: oidc ? "Yes" : "No")
+                            }
+                            if let update = about.updateAvailable, update {
+                                InfoRow(label: "Update Available", value: about.latestVersion ?? "Yes")
+                            }
                         }
                         .padding(8)
                     }

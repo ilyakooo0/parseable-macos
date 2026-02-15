@@ -153,12 +153,22 @@ final class ParseableClient: Sendable {
             return []
         }
 
-        return try JSONDecoder().decode([LogRecord].self, from: responseData)
+        // Handle both response formats:
+        // 1. Wrapped: {"records": [...], "fields": [...]}
+        // 2. Direct array: [...]
+        if let wrapped = try? JSONDecoder().decode(QueryResponse.self, from: responseData) {
+            return wrapped.records
+        }
+        return (try? JSONDecoder().decode([LogRecord].self, from: responseData)) ?? []
     }
 
     // MARK: - Alerts
 
     func getAlerts(stream: String) async throws -> AlertConfig {
+        // Try new API first, fall back to legacy per-stream endpoint
+        if let data = try? await performRequest(method: "GET", path: "/api/v1/alerts") {
+            return (try? JSONDecoder().decode(AlertConfig.self, from: data)) ?? AlertConfig(alerts: [], version: nil)
+        }
         let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(stream)/alert")
         return try JSONDecoder().decode(AlertConfig.self, from: data)
     }

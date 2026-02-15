@@ -10,12 +10,20 @@ struct ServerAbout: Codable {
     let store: StoreInfo?
     let license: String?
     let grpcPort: Int?
+    let updateAvailable: Bool?
+    let latestVersion: String?
+    let llmActive: Bool?
+    let oidcActive: Bool?
 
     private enum CodingKeys: String, CodingKey {
         case version, commit, mode, staging, store, license
         case uiVersion = "ui_version"
         case deploymentId = "deployment_id"
         case grpcPort = "grpc_port"
+        case updateAvailable
+        case latestVersion
+        case llmActive
+        case oidcActive
     }
 
     init(from decoder: Decoder) throws {
@@ -29,6 +37,10 @@ struct ServerAbout: Codable {
         self.store = try? container.decode(StoreInfo.self, forKey: .store)
         self.license = try? container.decode(String.self, forKey: .license)
         self.grpcPort = try? container.decode(Int.self, forKey: .grpcPort)
+        self.updateAvailable = try? container.decode(Bool.self, forKey: .updateAvailable)
+        self.latestVersion = try? container.decode(String.self, forKey: .latestVersion)
+        self.llmActive = try? container.decode(Bool.self, forKey: .llmActive)
+        self.oidcActive = try? container.decode(Bool.self, forKey: .oidcActive)
     }
 }
 
