@@ -16,6 +16,7 @@ final class QueryViewModel {
     private var currentStream: String?
     var isLoading = false
     var errorMessage: String?
+    var errorRange: NSRange?
     var resultCount = 0
     var queryDuration: TimeInterval?
     var selectedLogEntry: LogRecord?
@@ -301,6 +302,7 @@ final class QueryViewModel {
 
         isLoading = true
         errorMessage = nil
+        errorRange = nil
         resultsTruncated = false
         let startTime = CFAbsoluteTimeGetCurrent()
 
@@ -344,6 +346,13 @@ final class QueryViewModel {
                 columns = []
             } catch {
                 errorMessage = ParseableError.userFriendlyMessage(for: error)
+                if let serverError = error as? ParseableError,
+                   case .serverError(_, let msg) = serverError,
+                   let pos = SQLErrorPosition.parse(from: msg) {
+                    errorRange = SQLTokenizer.errorHighlightRange(
+                        line: pos.line, column: pos.column, in: sqlQuery
+                    )
+                }
                 results = []
                 columns = []
             }
@@ -360,6 +369,7 @@ final class QueryViewModel {
         queryTask = nil
         isLoading = false
         errorMessage = "Query cancelled"
+        errorRange = nil
     }
 
     @MainActor
@@ -466,6 +476,7 @@ final class QueryViewModel {
         queryDuration = nil
         selectedLogEntry = nil
         errorMessage = nil
+        errorRange = nil
         resultsTruncated = false
         schemaFields = []
     }

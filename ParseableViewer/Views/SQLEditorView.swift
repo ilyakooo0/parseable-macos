@@ -6,6 +6,7 @@ struct SQLEditorView: NSViewRepresentable {
     @Binding var text: String
     var streamNames: [String] = []
     var schemaFields: [SchemaField] = []
+    var errorRange: NSRange?
 
     static let editorFont = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
 
@@ -38,6 +39,7 @@ struct SQLEditorView: NSViewRepresentable {
 
         textView.string = text
         context.coordinator.applyHighlighting(to: textView)
+        context.coordinator.updateErrorHighlight(in: textView, errorRange: errorRange)
 
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
@@ -62,6 +64,7 @@ struct SQLEditorView: NSViewRepresentable {
                 textView.selectedRanges = validRanges
             }
         }
+        context.coordinator.updateErrorHighlight(in: textView, errorRange: errorRange)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -73,6 +76,11 @@ struct SQLEditorView: NSViewRepresentable {
         var isEditing = false
         var streamNames: [String]
         var schemaFields: [SchemaField]
+
+        /// Tracks the currently applied error underline so we can clear it.
+        private var lastAppliedErrorRange: NSRange?
+        /// The text content when the error was applied; used to detect stale ranges.
+        private var errorAppliedForText: String?
 
         private let completionPopup = SQLCompletionPopup()
         /// Tracks whether we are inserting a completion so that `textDidChange`
@@ -95,6 +103,7 @@ struct SQLEditorView: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             isEditing = true
+            clearErrorHighlight(in: textView)
             text.wrappedValue = textView.string
             applyHighlighting(to: textView)
             isEditing = false
@@ -207,6 +216,60 @@ struct SQLEditorView: NSViewRepresentable {
                     completionPopup.hide()
                 }
             }
+        }
+
+        // MARK: - Error Highlighting
+
+        func updateErrorHighlight(in textView: NSTextView, errorRange: NSRange?) {
+            guard let layoutManager = textView.layoutManager else { return }
+            let text = textView.string
+
+            // If text changed since we last applied an error, clear stale highlight
+            if let appliedText = errorAppliedForText, appliedText != text {
+                clearErrorHighlight(in: textView)
+            }
+
+            guard let range = errorRange else {
+                if lastAppliedErrorRange != nil {
+                    clearErrorHighlight(in: textView)
+                }
+                return
+            }
+
+            // Validate range is within bounds
+            let fullLength = (text as NSString).length
+            guard range.location + range.length <= fullLength else { return }
+
+            // Don't re-apply the same highlight
+            if lastAppliedErrorRange == range && errorAppliedForText == text { return }
+
+            // Clear any previous highlight first
+            if lastAppliedErrorRange != nil {
+                clearErrorHighlight(in: textView)
+            }
+
+            layoutManager.addTemporaryAttribute(
+                .underlineStyle,
+                value: NSUnderlineStyle.thick.rawValue,
+                forCharacterRange: range
+            )
+            layoutManager.addTemporaryAttribute(
+                .underlineColor,
+                value: NSColor.systemRed,
+                forCharacterRange: range
+            )
+
+            lastAppliedErrorRange = range
+            errorAppliedForText = text
+        }
+
+        func clearErrorHighlight(in textView: NSTextView) {
+            guard let layoutManager = textView.layoutManager else { return }
+            let fullRange = NSRange(location: 0, length: (textView.string as NSString).length)
+            layoutManager.removeTemporaryAttribute(.underlineStyle, forCharacterRange: fullRange)
+            layoutManager.removeTemporaryAttribute(.underlineColor, forCharacterRange: fullRange)
+            lastAppliedErrorRange = nil
+            errorAppliedForText = nil
         }
 
         // MARK: - Helpers

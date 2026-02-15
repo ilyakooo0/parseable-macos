@@ -121,7 +121,8 @@ struct QueryView: View {
                 SQLEditorView(
                     text: $vm.sqlQuery,
                     streamNames: appState.streams.map(\.name),
-                    schemaFields: viewModel.schemaFields
+                    schemaFields: viewModel.schemaFields,
+                    errorRange: viewModel.errorRange
                 )
                     .frame(minHeight: 60, maxHeight: 120)
                     .clipShape(RoundedRectangle(cornerRadius: 4))

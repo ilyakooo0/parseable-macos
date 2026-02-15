@@ -16,6 +16,7 @@
 		2C35EBC496AF8DAB215800F0 /* LogDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AA610FFA85948D794C5A4CC /* LogDetailView.swift */; };
 		2E3E0E23D3388B90955AD9A8 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D36767781BD4F0650C1CD27 /* KeychainService.swift */; };
 		308E024A853EDA08411FE6B0 /* UsersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 187537810EBBCC784604017D /* UsersView.swift */; };
+		355EA224A0C07271A0F9EBDA /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FFECFECB73C6B7DA1D0F99F /* AboutView.swift */; };
 		3CDE9527F8C25B7C32571CB4 /* ConnectionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 996D7D107A1959CF67E82DF5 /* ConnectionStoreTests.swift */; };
 		3F7EB642D3EBA91FCC962F15 /* ServerInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B7C589A8DC2293DDDE4D60F /* ServerInfo.swift */; };
 		3FDB32277A679A14D1455A7D /* SQLAutoCompleteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B692AC5D403FB0CBB28935B /* SQLAutoCompleteTests.swift */; };
@@ -68,6 +69,7 @@
 		187537810EBBCC784604017D /* UsersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsersView.swift; sourceTree = "<group>"; };
 		18D05E439E6063E901A3E7EC /* ServerConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConnection.swift; sourceTree = "<group>"; };
 		194F81AC44933EFE8C5F9824 /* LogStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogStream.swift; sourceTree = "<group>"; };
+		1FFECFECB73C6B7DA1D0F99F /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		2535C31705B3ADC1C8628380 /* SyntaxHighlightingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntaxHighlightingTests.swift; sourceTree = "<group>"; };
 		2B692AC5D403FB0CBB28935B /* SQLAutoCompleteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLAutoCompleteTests.swift; sourceTree = "<group>"; };
 		30A1771C7B952AEB93E35ADF /* ParseableClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseableClient.swift; sourceTree = "<group>"; };
@@ -124,6 +126,7 @@
 		171EC835252990F6B7BBB45D /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				1FFECFECB73C6B7DA1D0F99F /* AboutView.swift */,
 				878573090C3AB36A21A32DFA /* AlertsView.swift */,
 				9DF1D667CE043D657046ABC1 /* ConnectionSheet.swift */,
 				C3EB52E9BEDCAF82C6A155FA /* ContentView.swift */,
@@ -244,6 +247,7 @@
 			buildPhases = (
 				E7518B0D053D4667ECBB99E3 /* Sources */,
 				27EFF17FAE6D34920BFD0BB2 /* Resources */,
+				B271B96656D788CF64318006 /* Set Version from Git Commit Timestamp */,
 			);
 			buildRules = (
 			);
@@ -319,11 +323,34 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		B271B96656D788CF64318006 /* Set Version from Git Commit Timestamp */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Set Version from Git Commit Timestamp";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "COMMIT_TIMESTAMP=$(TZ=UTC git log -1 --format='%cd' --date=format-local:'%Y%m%d.%H%M%S' 2>/dev/null)\nif [ -n \"$COMMIT_TIMESTAMP\" ]; then\n  /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion ${COMMIT_TIMESTAMP}\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n  /usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString ${COMMIT_TIMESTAMP}\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		E7518B0D053D4667ECBB99E3 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				355EA224A0C07271A0F9EBDA /* AboutView.swift in Sources */,
 				B1BBABAB489838F84E670DD6 /* AlertModels.swift in Sources */,
 				4A269FCA596D52F688BB055A /* AlertsView.swift in Sources */,
 				15A0B57711D4B39118F09D93 /* AppState.swift in Sources */,

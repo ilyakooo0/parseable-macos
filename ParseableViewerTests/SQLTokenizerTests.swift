@@ -251,4 +251,101 @@ final class SQLTokenizerTests: XCTestCase {
         XCTAssertNotNil(range)
         XCTAssertEqual(String(sql[range!]), #""from""#)
     }
+
+    // MARK: - SQLErrorPosition.parse
+
+    func testParseDataFusionError() {
+        let msg = "Expected: an expression, found: FROM at Line: 1, Column 15"
+        let pos = SQLErrorPosition.parse(from: msg)
+        XCTAssertEqual(pos, SQLErrorPosition(line: 1, column: 15))
+    }
+
+    func testParseDataFusionErrorWithColonAfterColumn() {
+        let msg = "Error at Line: 2, Column: 10"
+        let pos = SQLErrorPosition.parse(from: msg)
+        XCTAssertEqual(pos, SQLErrorPosition(line: 2, column: 10))
+    }
+
+    func testParseReturnsNilForNoPosition() {
+        let msg = "Some generic error without position info"
+        XCTAssertNil(SQLErrorPosition.parse(from: msg))
+    }
+
+    func testParseReturnsNilForEmptyString() {
+        XCTAssertNil(SQLErrorPosition.parse(from: ""))
+    }
+
+    // MARK: - characterOffset
+
+    func testCharacterOffsetSingleLine() {
+        let sql = "SELECT * FROM t"
+        // Line 1, Column 8 → offset 7 (the '*')
+        XCTAssertEqual(SQLTokenizer.characterOffset(line: 1, column: 8, in: sql), 7)
+    }
+
+    func testCharacterOffsetMultiLine() {
+        let sql = "SELECT *\nFROM t"
+        // Line 2, Column 1 → offset 9 (the 'F' of FROM)
+        XCTAssertEqual(SQLTokenizer.characterOffset(line: 2, column: 1, in: sql), 9)
+    }
+
+    func testCharacterOffsetLineBeyondEnd() {
+        let sql = "SELECT *"
+        XCTAssertNil(SQLTokenizer.characterOffset(line: 3, column: 1, in: sql))
+    }
+
+    func testCharacterOffsetColumnBeyondEnd() {
+        let sql = "SELECT *"
+        // Column 100 on a short string
+        XCTAssertNil(SQLTokenizer.characterOffset(line: 1, column: 100, in: sql))
+    }
+
+    // MARK: - tokenRange
+
+    func testTokenRangeAtKeyword() {
+        let sql = "SELEC * FROM t"
+        // Offset 0 is at the start of "SELEC" (which is an identifier, not a keyword)
+        let range = SQLTokenizer.tokenRange(atOffset: 0, in: sql)
+        XCTAssertNotNil(range)
+        XCTAssertEqual((sql as NSString).substring(with: range!), "SELEC")
+    }
+
+    func testTokenRangeAtWhitespaceSnapsToNextToken() {
+        let sql = "SELECT  * FROM t"
+        // Offset 6 is inside the whitespace between SELECT and *
+        let range = SQLTokenizer.tokenRange(atOffset: 7, in: sql)
+        XCTAssertNotNil(range)
+        XCTAssertEqual((sql as NSString).substring(with: range!), "*")
+    }
+
+    func testTokenRangeAtIdentifier() {
+        let sql = "SELECT * FROM mytable"
+        // Offset 14 is at 'm' of "mytable"
+        let range = SQLTokenizer.tokenRange(atOffset: 14, in: sql)
+        XCTAssertNotNil(range)
+        XCTAssertEqual((sql as NSString).substring(with: range!), "mytable")
+    }
+
+    // MARK: - errorHighlightRange (end-to-end)
+
+    func testErrorHighlightRangeTypoInKeyword() {
+        let sql = "SELEC * FROM t"
+        // DataFusion would report Line: 1, Column 1 for SELEC
+        let range = SQLTokenizer.errorHighlightRange(line: 1, column: 1, in: sql)
+        XCTAssertNotNil(range)
+        XCTAssertEqual((sql as NSString).substring(with: range!), "SELEC")
+    }
+
+    func testErrorHighlightRangeMultiLine() {
+        let sql = "SELECT *\nFRO t"
+        // Line 2, Column 1 → "FRO"
+        let range = SQLTokenizer.errorHighlightRange(line: 2, column: 1, in: sql)
+        XCTAssertNotNil(range)
+        XCTAssertEqual((sql as NSString).substring(with: range!), "FRO")
+    }
+
+    func testErrorHighlightRangeInvalidPosition() {
+        let sql = "SELECT * FROM t"
+        XCTAssertNil(SQLTokenizer.errorHighlightRange(line: 99, column: 1, in: sql))
+    }
 }
