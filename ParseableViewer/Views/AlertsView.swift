@@ -82,7 +82,7 @@ struct AlertsView: View {
         do {
             alertConfig = try await client.getAlerts(stream: stream)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = ParseableError.userFriendlyMessage(for: error)
         }
 
         isLoading = false

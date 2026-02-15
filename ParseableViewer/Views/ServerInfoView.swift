@@ -21,6 +21,7 @@ struct ServerInfoView: View {
                         Image(systemName: "arrow.clockwise")
                     }
                     .disabled(isLoading)
+                    .accessibilityLabel("Refresh server info")
                 }
 
                 if isLoading {

@@ -85,7 +85,7 @@ struct UsersView: View {
         do {
             users = try await client.listUsers()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = ParseableError.userFriendlyMessage(for: error)
         }
 
         isLoading = false

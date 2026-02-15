@@ -149,7 +149,7 @@ final class LiveTailViewModel {
             lastPollTime = now
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = ParseableError.userFriendlyMessage(for: error)
         }
     }
 
