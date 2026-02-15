@@ -185,6 +185,12 @@ jobs:
             homepage "https://github.com/ilyakooo0/parseable-macos"
 
             app "Parseable Viewer.app"
+
+            postflight do
+              system_command "/usr/bin/xattr",
+                             args: ["-cr", "#{appdir}/Parseable Viewer.app"],
+                             sudo: false
+            end
           end
           CASK
 
