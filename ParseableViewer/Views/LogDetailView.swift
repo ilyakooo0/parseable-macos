@@ -141,19 +141,19 @@ struct JSONValueView: View {
         case .bool(let v):
             Text(v ? "true" : "false")
                 .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.purple)
+                .foregroundStyle(Color(nsColor: .systemOrange))
         case .int(let v):
             Text(String(v))
                 .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color(nsColor: .systemPurple))
         case .double(let v):
             Text(String(v))
                 .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color(nsColor: .systemPurple))
         case .string(let v):
             Text(v)
                 .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.primary)
+                .foregroundStyle(Color(nsColor: .systemRed))
                 .textSelection(.enabled)
         case .array(let items):
             VStack(alignment: .leading, spacing: 2) {
@@ -186,14 +186,9 @@ struct JSONValueView: View {
 struct RawJSONView: View {
     let record: LogRecord
 
-    var jsonString: String {
-        let obj = JSONValue.object(record)
-        return obj.prettyPrinted()
-    }
-
     var body: some View {
-        Text(jsonString)
-            .font(.system(.caption, design: .monospaced))
+        let json = JSONValue.object(record).prettyPrinted()
+        Text(JSONSyntaxHighlighter.highlight(json))
             .textSelection(.enabled)
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)

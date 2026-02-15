@@ -106,12 +106,8 @@ struct QueryView: View {
                 .padding(8)
 
                 // SQL editor
-                TextEditor(text: $vm.sqlQuery)
-                    .font(.system(.body, design: .monospaced))
+                SQLEditorView(text: $vm.sqlQuery)
                     .frame(minHeight: 60, maxHeight: 120)
-                    .scrollContentBackground(.hidden)
-                    .padding(4)
-                    .background(Color(nsColor: .textBackgroundColor))
                     .clipShape(RoundedRectangle(cornerRadius: 4))
                     .overlay(
                         RoundedRectangle(cornerRadius: 4)
