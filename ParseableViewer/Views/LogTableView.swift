@@ -266,9 +266,9 @@ struct LogRowView: View {
                 Text(value?.displayString ?? "")
                     .font(.system(.caption, design: .monospaced))
                     .lineLimit(1)
-                    .frame(width: columnWidths[column] ?? 120, alignment: .leading)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
+                    .frame(width: columnWidths[column] ?? 120, alignment: .leading)
                     .foregroundStyle(colorForValue(column: column, value: value))
                     .contextMenu {
                         Button("Copy Value") {
