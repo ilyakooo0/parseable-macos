@@ -192,7 +192,7 @@ struct QueryView: View {
                                     Image(systemName: "eye")
                                     Text("Columns")
                                         .font(.caption)
-                                    if !viewModel.hiddenColumns.isEmpty {
+                                    if !viewModel.hiddenColumns.isEmpty || !viewModel.autoHiddenColumns.isEmpty {
                                         Text("(\(viewModel.visibleColumns.count)/\(viewModel.columns.count))")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
@@ -368,7 +368,7 @@ struct ColumnManagerView: View {
                 Text("Columns")
                     .font(.headline)
                 Spacer()
-                if !viewModel.hiddenColumns.isEmpty || viewModel.columnOrder != viewModel.columns {
+                if !viewModel.hiddenColumns.isEmpty || !viewModel.autoHiddenColumns.isEmpty || viewModel.columnOrder != viewModel.columns {
                     Button("Reset") {
                         viewModel.resetColumnConfig()
                     }
@@ -383,26 +383,32 @@ struct ColumnManagerView: View {
 
             List {
                 ForEach(viewModel.columnOrder, id: \.self) { column in
+                    let isHidden = viewModel.hiddenColumns.contains(column)
+                        || viewModel.autoHiddenColumns.contains(column)
                     HStack {
                         Button {
                             viewModel.toggleColumnVisibility(column)
                         } label: {
-                            Image(systemName: viewModel.hiddenColumns.contains(column)
-                                  ? "eye.slash" : "eye")
-                                .foregroundStyle(viewModel.hiddenColumns.contains(column)
-                                                 ? .secondary : .primary)
+                            Image(systemName: isHidden ? "eye.slash" : "eye")
+                                .foregroundStyle(isHidden ? .secondary : .primary)
                                 .frame(width: 20)
                         }
                         .buttonStyle(.plain)
-                        .help(viewModel.hiddenColumns.contains(column) ? "Show column" : "Hide column")
+                        .help(isHidden ? "Show column" : "Hide column")
 
                         Text(column)
                             .font(.system(.body, design: .monospaced))
                             .lineLimit(1)
-                            .foregroundStyle(viewModel.hiddenColumns.contains(column)
-                                             ? .secondary : .primary)
+                            .foregroundStyle(isHidden ? .secondary : .primary)
 
                         Spacer()
+
+                        if viewModel.autoHiddenColumns.contains(column) {
+                            Text("empty")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .padding(.trailing, 4)
+                        }
 
                         Image(systemName: "line.3.horizontal")
                             .foregroundStyle(.tertiary)
@@ -416,7 +422,7 @@ struct ColumnManagerView: View {
             }
             .listStyle(.plain)
 
-            if !viewModel.hiddenColumns.isEmpty {
+            if !viewModel.hiddenColumns.isEmpty || !viewModel.autoHiddenColumns.isEmpty {
                 Divider()
                 Button("Show All Columns") {
                     viewModel.showAllColumns()

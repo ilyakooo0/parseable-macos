@@ -10,6 +10,7 @@ final class QueryViewModel {
     var columns: [String] = []
     var columnOrder: [String] = []
     var hiddenColumns: Set<String> = []
+    var autoHiddenColumns: Set<String> = []
     private var currentStream: String?
     var isLoading = false
     var errorMessage: String?
@@ -115,15 +116,19 @@ final class QueryViewModel {
     }
 
     var visibleColumns: [String] {
-        columnOrder.filter { !hiddenColumns.contains($0) }
+        let allHidden = hiddenColumns.union(autoHiddenColumns)
+        return columnOrder.filter { !allHidden.contains($0) }
     }
 
     func toggleColumnVisibility(_ column: String) {
         if hiddenColumns.contains(column) {
             hiddenColumns.remove(column)
+        } else if autoHiddenColumns.contains(column) {
+            autoHiddenColumns.remove(column)
         } else {
             // Don't allow hiding all columns
-            let visibleCount = columnOrder.count - hiddenColumns.count
+            let allHidden = hiddenColumns.union(autoHiddenColumns)
+            let visibleCount = columnOrder.count - allHidden.count
             if visibleCount > 1 {
                 hiddenColumns.insert(column)
             }
@@ -133,6 +138,7 @@ final class QueryViewModel {
 
     func showAllColumns() {
         hiddenColumns.removeAll()
+        autoHiddenColumns.removeAll()
         saveColumnConfig()
     }
 
@@ -153,6 +159,7 @@ final class QueryViewModel {
     func resetColumnConfig() {
         columnOrder = columns
         hiddenColumns.removeAll()
+        autoHiddenColumns.removeAll()
         saveColumnConfig()
     }
 
@@ -280,6 +287,18 @@ final class QueryViewModel {
                 let extracted = extractColumns(from: results)
                 applyColumnConfig(extractedColumns: extracted, stream: stream)
 
+                // Auto-hide columns that have no values in any row.
+                // Clear first so stale state from a previous query doesn't
+                // interfere with the visible-count check.
+                autoHiddenColumns = []
+                let empty = emptyColumns(in: results, columns: columnOrder)
+                let candidates = empty.subtracting(hiddenColumns)
+                let visibleCount = columnOrder.count - hiddenColumns.count
+                // Ensure at least one column remains visible
+                if candidates.count < visibleCount {
+                    autoHiddenColumns = candidates
+                }
+
                 // Record in history
                 let entry = QueryHistoryEntry(sql: sql, resultCount: resultCount, duration: queryDuration ?? 0)
                 addToHistory(entry)
@@ -340,6 +359,21 @@ final class QueryViewModel {
         return ordered
     }
 
+    /// Returns the set of columns that have no meaningful value in any record.
+    /// A value is considered empty if it is missing (nil), `.null`, or `.string("")`.
+    func emptyColumns(in records: [LogRecord], columns: [String]) -> Set<String> {
+        var empty = Set(columns)
+        for record in records {
+            if empty.isEmpty { break }
+            for column in empty {
+                if let value = record[column], value != .null, value != .string("") {
+                    empty.remove(column)
+                }
+            }
+        }
+        return empty
+    }
+
     func exportAsJSON() -> String {
         guard !results.isEmpty else { return "[]" }
         let encoder = JSONEncoder()
@@ -390,6 +424,7 @@ final class QueryViewModel {
         columns = []
         columnOrder = []
         hiddenColumns = []
+        autoHiddenColumns = []
         currentStream = nil
         resultCount = 0
         queryDuration = nil

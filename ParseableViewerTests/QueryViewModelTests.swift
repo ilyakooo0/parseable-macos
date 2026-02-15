@@ -428,5 +428,145 @@ final class QueryViewModelTests: XCTestCase {
         XCTAssertFalse(csv.contains("secret"))
         XCTAssertFalse(csv.contains("hidden"))
     }
+
+    // MARK: - Empty column detection
+
+    func testEmptyColumnsDetectsAllNulls() {
+        let vm = QueryViewModel()
+        let records: [LogRecord] = [
+            ["a": .string("val"), "b": .null],
+            ["a": .string("val2"), "b": .null],
+        ]
+        let empty = vm.emptyColumns(in: records, columns: ["a", "b"])
+        XCTAssertEqual(empty, ["b"])
+    }
+
+    func testEmptyColumnsDetectsMissingKeys() {
+        let vm = QueryViewModel()
+        let records: [LogRecord] = [
+            ["a": .string("val")],
+            ["a": .string("val2")],
+        ]
+        let empty = vm.emptyColumns(in: records, columns: ["a", "b"])
+        XCTAssertEqual(empty, ["b"])
+    }
+
+    func testEmptyColumnsDetectsEmptyStrings() {
+        let vm = QueryViewModel()
+        let records: [LogRecord] = [
+            ["a": .string("val"), "b": .string("")],
+            ["a": .string("val2"), "b": .string("")],
+        ]
+        let empty = vm.emptyColumns(in: records, columns: ["a", "b"])
+        XCTAssertEqual(empty, ["b"])
+    }
+
+    func testEmptyColumnsMixedNullAndMissing() {
+        let vm = QueryViewModel()
+        let records: [LogRecord] = [
+            ["a": .string("val"), "b": .null],
+            ["a": .string("val2")],
+            ["a": .string("val3"), "b": .string("")],
+        ]
+        let empty = vm.emptyColumns(in: records, columns: ["a", "b"])
+        XCTAssertEqual(empty, ["b"])
+    }
+
+    func testEmptyColumnsNotEmptyIfAnyRecordHasValue() {
+        let vm = QueryViewModel()
+        let records: [LogRecord] = [
+            ["a": .string("val"), "b": .null],
+            ["a": .string("val2"), "b": .string("data")],
+        ]
+        let empty = vm.emptyColumns(in: records, columns: ["a", "b"])
+        XCTAssertTrue(empty.isEmpty)
+    }
+
+    func testEmptyColumnsNoRecords() {
+        let vm = QueryViewModel()
+        let empty = vm.emptyColumns(in: [], columns: ["a", "b"])
+        XCTAssertEqual(empty, ["a", "b"])
+    }
+
+    func testEmptyColumnsNoColumns() {
+        let vm = QueryViewModel()
+        let records: [LogRecord] = [["a": .string("val")]]
+        let empty = vm.emptyColumns(in: records, columns: [])
+        XCTAssertTrue(empty.isEmpty)
+    }
+
+    func testAutoHiddenColumnsExcludedFromVisibleColumns() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+        vm.autoHiddenColumns = ["b"]
+        XCTAssertEqual(vm.visibleColumns, ["a", "c"])
+    }
+
+    func testToggleAutoHiddenColumnShowsIt() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+        vm.autoHiddenColumns = ["b"]
+        vm.toggleColumnVisibility("b")
+        XCTAssertFalse(vm.autoHiddenColumns.contains("b"))
+        XCTAssertEqual(vm.visibleColumns, ["a", "b", "c"])
+    }
+
+    func testShowAllColumnsClearsAutoHidden() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+        vm.hiddenColumns = ["a"]
+        vm.autoHiddenColumns = ["b"]
+        vm.showAllColumns()
+        XCTAssertTrue(vm.hiddenColumns.isEmpty)
+        XCTAssertTrue(vm.autoHiddenColumns.isEmpty)
+        XCTAssertEqual(vm.visibleColumns, ["a", "b", "c"])
+    }
+
+    func testResetColumnConfigClearsAutoHidden() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["c", "b", "a"]
+        vm.autoHiddenColumns = ["b"]
+        vm.resetColumnConfig()
+        XCTAssertEqual(vm.columnOrder, ["a", "b", "c"])
+        XCTAssertTrue(vm.autoHiddenColumns.isEmpty)
+    }
+
+    func testClearResultsClearsAutoHidden() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b"]
+        vm.columnOrder = ["a", "b"]
+        vm.autoHiddenColumns = ["b"]
+        vm.clearResults()
+        XCTAssertTrue(vm.autoHiddenColumns.isEmpty)
+    }
+
+    func testCSVExportExcludesAutoHiddenColumns() {
+        let vm = QueryViewModel()
+        vm.results = [
+            ["name": .string("Alice"), "age": .int(30), "empty_col": .null],
+        ]
+        vm.columns = ["name", "age", "empty_col"]
+        vm.columnOrder = ["name", "age", "empty_col"]
+        vm.autoHiddenColumns = ["empty_col"]
+        let csv = vm.exportAsCSV()
+
+        let lines = csv.components(separatedBy: "\n").filter { !$0.isEmpty }
+        XCTAssertEqual(lines[0], "name,age")
+        XCTAssertFalse(csv.contains("empty_col"))
+    }
+
+    func testBoolZeroValuesNotTreatedAsEmpty() {
+        let vm = QueryViewModel()
+        let records: [LogRecord] = [
+            ["a": .bool(false)],
+            ["a": .int(0)],
+        ]
+        let empty = vm.emptyColumns(in: records, columns: ["a"])
+        XCTAssertTrue(empty.isEmpty)
+    }
 }
 
