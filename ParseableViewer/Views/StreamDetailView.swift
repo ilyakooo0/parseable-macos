@@ -176,18 +176,22 @@ struct StreamDetailView: View {
         isLoading = true
         errorMessage = nil
 
-        async let schemaResult = client.getStreamSchema(stream: stream)
-        async let statsResult = client.getStreamStats(stream: stream)
-        async let infoResult = client.getStreamInfo(stream: stream)
-        async let retentionResult = client.getRetention(stream: stream)
+        var failures: [String] = []
 
-        schema = try? await schemaResult
-        stats = try? await statsResult
-        info = try? await infoResult
-        retention = (try? await retentionResult) ?? []
+        do { schema = try await client.getStreamSchema(stream: stream) }
+        catch { schema = nil; failures.append("schema") }
 
-        if schema == nil && stats == nil && info == nil {
-            errorMessage = "Failed to load stream information"
+        do { stats = try await client.getStreamStats(stream: stream) }
+        catch { stats = nil; failures.append("stats") }
+
+        do { info = try await client.getStreamInfo(stream: stream) }
+        catch { info = nil; failures.append("info") }
+
+        do { retention = try await client.getRetention(stream: stream) }
+        catch { retention = []; failures.append("retention") }
+
+        if !failures.isEmpty {
+            errorMessage = "Failed to load: \(failures.joined(separator: ", "))"
         }
 
         isLoading = false

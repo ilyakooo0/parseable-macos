@@ -46,7 +46,9 @@ final class ParseableClient: Sendable {
 
     private var authHeader: String {
         let credentials = "\(username):\(password)"
-        let data = credentials.data(using: .utf8)!
+        guard let data = credentials.data(using: .utf8) else {
+            return "Basic "
+        }
         return "Basic \(data.base64EncodedString())"
     }
 

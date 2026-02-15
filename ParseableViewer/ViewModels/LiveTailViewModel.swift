@@ -11,6 +11,8 @@ final class LiveTailViewModel {
     var pollInterval: TimeInterval = 2.0
     var maxEntries = 5000
     var errorMessage: String?
+    var droppedCount = 0
+    private(set) var lastPollTime: Date?
 
     private var timer: Timer?
     private var lastTimestamp: Date?
@@ -68,6 +70,8 @@ final class LiveTailViewModel {
         errorMessage = nil
         entries = []
         seenFingerprints = []
+        droppedCount = 0
+        lastPollTime = nil
         lastTimestamp = Date()
 
         timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
@@ -92,6 +96,7 @@ final class LiveTailViewModel {
     func clear() {
         entries = []
         seenFingerprints = []
+        droppedCount = 0
     }
 
     private func poll(client: ParseableClient, stream: String) async {
@@ -127,6 +132,7 @@ final class LiveTailViewModel {
 
                 if entries.count > maxEntries {
                     let excess = entries.count - maxEntries
+                    droppedCount += excess
                     entries.removeFirst(excess)
                 }
             }
@@ -137,6 +143,7 @@ final class LiveTailViewModel {
             }
 
             lastTimestamp = now
+            lastPollTime = now
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -144,7 +151,7 @@ final class LiveTailViewModel {
     }
 
     /// Deterministic content-based fingerprint using sorted key-value pairs and FNV-1a.
-    private static func fingerprint(for record: LogRecord) -> String {
+    static func fingerprint(for record: LogRecord) -> String {
         var h0: UInt64 = 14695981039346656037
         var h1: UInt64 = 14695981039346656037 &* 31
         for key in record.keys.sorted() {
@@ -164,7 +171,7 @@ final class LiveTailViewModel {
         return String(h0, radix: 36) + String(h1, radix: 36)
     }
 
-    private func parseTimestamp(from record: LogRecord) -> Date? {
+    func parseTimestamp(from record: LogRecord) -> Date? {
         guard let value = record["p_timestamp"] ?? record["timestamp"] ?? record["time"] ?? record["@timestamp"] else {
             return nil
         }
@@ -177,7 +184,7 @@ final class LiveTailViewModel {
         return nil
     }
 
-    private func buildSummary(from record: LogRecord) -> String {
+    func buildSummary(from record: LogRecord) -> String {
         var parts: [String] = []
 
         if let level = record["level"] ?? record["severity"] ?? record["log_level"] {

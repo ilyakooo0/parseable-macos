@@ -5,6 +5,7 @@ struct LiveTailView: View {
     @State private var viewModel = LiveTailViewModel()
     @State private var selectedEntry: LiveTailViewModel.LiveTailEntry?
     @State private var autoScroll = true
+    @State private var pulseOpacity: Double = 1.0
 
     var body: some View {
         @Bindable var vm = viewModel
@@ -80,7 +81,11 @@ struct LiveTailView: View {
                         Circle()
                             .fill(viewModel.isPaused ? .yellow : .green)
                             .frame(width: 8, height: 8)
+                            .opacity(viewModel.isPaused ? 1.0 : pulseOpacity)
                             .accessibilityLabel(viewModel.isPaused ? "Status: Paused" : "Status: Streaming")
+                            .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: pulseOpacity)
+                            .onAppear { pulseOpacity = 0.3 }
+                            .onDisappear { pulseOpacity = 1.0 }
                         Text(viewModel.isPaused ? "Paused" : "Streaming")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -96,6 +101,13 @@ struct LiveTailView: View {
                     }
 
                     Spacer()
+
+                    if viewModel.droppedCount > 0 {
+                        Text("\(viewModel.droppedCount) dropped")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .help("Oldest entries were removed to stay within the \(viewModel.maxEntries)-entry buffer limit")
+                    }
 
                     Text("\(viewModel.displayedCount) entries")
                         .font(.caption)

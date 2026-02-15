@@ -122,12 +122,14 @@ struct ServerInfoView: View {
         isLoading = true
         errorMessage = nil
 
-        do {
-            async let healthResult = client.checkHealth()
-            async let aboutResult = client.getAbout()
+        async let healthResult = client.checkHealth()
+        async let aboutResult = client.getAbout()
 
-            isHealthy = (try? await healthResult) ?? false
-            about = try? await aboutResult
+        isHealthy = (try? await healthResult) ?? false
+        about = try? await aboutResult
+
+        if about == nil {
+            errorMessage = "Failed to load server information"
         }
 
         isLoading = false
