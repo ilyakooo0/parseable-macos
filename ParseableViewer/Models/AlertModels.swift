@@ -4,6 +4,11 @@ struct AlertConfig: Codable {
     let alerts: [AlertRule]?
     let version: String?
 
+    init(alerts: [AlertRule]?, version: String?) {
+        self.alerts = alerts
+        self.version = version
+    }
+
     init(from decoder: Decoder) throws {
         // Handle both {"alerts": [...]} and direct array
         if let container = try? decoder.container(keyedBy: CodingKeys.self) {
