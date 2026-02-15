@@ -289,7 +289,11 @@ struct LiveTailView: View {
                             )
                             .id(sorted[index].id)
                             .onTapGesture {
-                                selectedRecord = sorted[index].record
+                                if selectedRecord == sorted[index].record {
+                                    selectedRecord = nil
+                                } else {
+                                    selectedRecord = sorted[index].record
+                                }
                             }
                         }
                     } header: {
