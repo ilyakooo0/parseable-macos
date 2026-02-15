@@ -52,6 +52,7 @@ final class ParseableClientTests: XCTestCase {
         let config = try JSONDecoder().decode(AlertConfig.self, from: json)
         XCTAssertEqual(config.alerts?.count, 1)
         XCTAssertEqual(config.alerts?[0].name, "high-cpu")
+        XCTAssertEqual(config.alerts?[0].displayName, "high-cpu")
         XCTAssertEqual(config.version, "v1")
     }
 
@@ -63,6 +64,7 @@ final class ParseableClientTests: XCTestCase {
         let config = try JSONDecoder().decode(AlertConfig.self, from: json)
         XCTAssertEqual(config.alerts?.count, 1)
         XCTAssertEqual(config.alerts?[0].name, "disk-full")
+        XCTAssertEqual(config.alerts?[0].displayName, "disk-full")
         XCTAssertNil(config.version)
     }
 
@@ -70,6 +72,42 @@ final class ParseableClientTests: XCTestCase {
         let config = AlertConfig(alerts: [], version: nil)
         XCTAssertEqual(config.alerts?.count, 0)
         XCTAssertNil(config.version)
+    }
+
+    func testAlertConfigModernAPIFormat() throws {
+        let json = """
+        [{"id": "01HQ3...", "title": "High CPU Alert", "severity": "Critical", "state": "Triggered", "alertType": "Threshold", "datasets": ["backend-logs"], "created": "2025-01-01T00:00:00Z"}]
+        """.data(using: .utf8)!
+
+        let config = try JSONDecoder().decode(AlertConfig.self, from: json)
+        XCTAssertEqual(config.alerts?.count, 1)
+        let alert = try XCTUnwrap(config.alerts?.first)
+        XCTAssertEqual(alert.title, "High CPU Alert")
+        XCTAssertEqual(alert.displayName, "High CPU Alert")
+        XCTAssertEqual(alert.severity, "Critical")
+        XCTAssertEqual(alert.state, "Triggered")
+        XCTAssertEqual(alert.alertType, "Threshold")
+        XCTAssertEqual(alert.datasets, ["backend-logs"])
+        XCTAssertEqual(alert.alertId, "01HQ3...")
+        XCTAssertNil(alert.name)
+    }
+
+    func testAlertRuleDisplayNamePrefersTitle() throws {
+        let json = """
+        {"title": "My Alert", "name": "my-alert"}
+        """.data(using: .utf8)!
+
+        let alert = try JSONDecoder().decode(AlertRule.self, from: json)
+        XCTAssertEqual(alert.displayName, "My Alert")
+    }
+
+    func testAlertRuleDisplayNameFallsBackToName() throws {
+        let json = """
+        {"name": "legacy-alert"}
+        """.data(using: .utf8)!
+
+        let alert = try JSONDecoder().decode(AlertRule.self, from: json)
+        XCTAssertEqual(alert.displayName, "legacy-alert")
     }
 
     // MARK: - Retention config decoding

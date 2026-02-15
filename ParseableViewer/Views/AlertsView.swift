@@ -97,9 +97,28 @@ struct AlertRowView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Image(systemName: "bell.fill")
-                    .foregroundStyle(.orange)
-                Text(alert.name)
+                    .foregroundStyle(stateColor)
+                Text(alert.displayName)
                     .fontWeight(.medium)
+                Spacer()
+                if let severity = alert.severity {
+                    Text(severity)
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(severityColor.opacity(0.15))
+                        .foregroundStyle(severityColor)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+                if let state = alert.state {
+                    Text(state)
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(stateColor.opacity(0.15))
+                        .foregroundStyle(stateColor)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
             }
 
             if let message = alert.message {
@@ -108,14 +127,40 @@ struct AlertRowView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let rule = alert.rule {
+            HStack(spacing: 8) {
+                if let alertType = alert.alertType {
+                    Label(alertType, systemImage: "gearshape")
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.blue.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+
+                if let rule = alert.rule, let type = rule.type {
+                    Label(type, systemImage: "gearshape")
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.blue.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+
+                if let datasets = alert.datasets, !datasets.isEmpty {
+                    Label(datasets.joined(separator: ", "), systemImage: "cylinder")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let tags = alert.tags, !tags.isEmpty {
                 HStack {
-                    if let type = rule.type {
-                        Label(type, systemImage: "gearshape")
+                    ForEach(tags, id: \.self) { tag in
+                        Text(tag)
                             .font(.caption2)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.blue.opacity(0.1))
+                            .background(Color.purple.opacity(0.1))
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                     }
                 }
@@ -140,5 +185,23 @@ struct AlertRowView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private var stateColor: Color {
+        switch alert.state?.lowercased() {
+        case "triggered": return .red
+        case "disabled": return .gray
+        default: return .orange
+        }
+    }
+
+    private var severityColor: Color {
+        switch alert.severity?.lowercased() {
+        case "critical": return .red
+        case "high": return .orange
+        case "medium": return .yellow
+        case "low": return .blue
+        default: return .secondary
+        }
     }
 }
