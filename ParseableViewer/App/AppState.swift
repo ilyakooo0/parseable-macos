@@ -14,6 +14,7 @@ final class AppState {
     private(set) var isNetworkAvailable = true
     private let networkMonitor = NWPathMonitor()
     private let networkMonitorQueue = DispatchQueue(label: "com.parseableviewer.network-monitor")
+    private var connectTask: Task<Void, Never>?
 
     // MARK: - Stream State
     var streams: [LogStream] = []
@@ -82,7 +83,7 @@ final class AppState {
 
         if let activeID = ConnectionStore.loadActiveConnectionID(),
            let connection = connections.first(where: { $0.id == activeID }) {
-            Task { @MainActor in
+            connectTask = Task { @MainActor in
                 await connect(to: connection)
             }
         }
@@ -134,6 +135,8 @@ final class AppState {
 
     @MainActor
     func disconnect() {
+        connectTask?.cancel()
+        connectTask = nil
         client = nil
         activeConnection = nil
         isConnected = false

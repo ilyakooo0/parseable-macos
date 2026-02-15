@@ -253,11 +253,12 @@ struct QueryView: View {
         saveToFile(type: "json") {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            if let data = try? encoder.encode(results),
-               let string = String(data: data, encoding: .utf8) {
-                return string
+            do {
+                let data = try encoder.encode(results)
+                return String(data: data, encoding: .utf8) ?? "[]"
+            } catch {
+                return nil
             }
-            return "[]"
         }
     }
 
@@ -269,14 +270,20 @@ struct QueryView: View {
         }
     }
 
-    private func saveToFile(type: String, generate: @Sendable @escaping () -> String) {
+    private func saveToFile(type: String, generate: @Sendable @escaping () -> String?) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = type == "json" ? [.json] : [.commaSeparatedText]
         panel.nameFieldStringValue = "export.\(type)"
         panel.begin { result in
             guard result == .OK, let url = panel.url else { return }
             Task.detached(priority: .userInitiated) {
-                let content = generate()
+                guard let content = generate() else {
+                    await MainActor.run {
+                        exportError = "Failed to encode data for export"
+                        showExportError = true
+                    }
+                    return
+                }
                 do {
                     try content.write(to: url, atomically: true, encoding: .utf8)
                 } catch {

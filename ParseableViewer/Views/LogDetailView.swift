@@ -56,7 +56,8 @@ struct LogDetailView: View {
         if let data = try? JSONEncoder().encode(dict),
            let json = String(data: data, encoding: .utf8) {
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(json, forType: .string)
+            let success = NSPasteboard.general.setString(json, forType: .string)
+            guard success else { return }
 
             showCopyConfirmation = true
             Task {
