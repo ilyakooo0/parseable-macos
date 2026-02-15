@@ -1,0 +1,180 @@
+import SwiftUI
+
+struct LiveTailView: View {
+    @Environment(AppState.self) private var appState
+    @State private var viewModel = LiveTailViewModel()
+    @State private var selectedEntry: LiveTailViewModel.LiveTailEntry?
+    @State private var autoScroll = true
+
+    var body: some View {
+        @Bindable var vm = viewModel
+
+        HSplitView {
+            VStack(spacing: 0) {
+                // Toolbar
+                HStack {
+                    if viewModel.isRunning {
+                        Button {
+                            viewModel.stop()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "stop.fill")
+                                Text("Stop")
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.red)
+
+                        Button {
+                            viewModel.togglePause()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: viewModel.isPaused ? "play.fill" : "pause.fill")
+                                Text(viewModel.isPaused ? "Resume" : "Pause")
+                            }
+                        }
+                    } else {
+                        Button {
+                            viewModel.start(
+                                client: appState.client,
+                                stream: appState.selectedStream
+                            )
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "antenna.radiowaves.left.and.right")
+                                Text("Start Live Tail")
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!appState.isConnected || appState.selectedStream == nil)
+                    }
+
+                    Spacer()
+
+                    // Filter
+                    HStack {
+                        Image(systemName: "line.3.horizontal.decrease")
+                            .foregroundStyle(.secondary)
+                        TextField("Filter...", text: $vm.filterText)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 200)
+                    }
+
+                    Toggle("Auto-scroll", isOn: $autoScroll)
+                        .toggleStyle(.checkbox)
+
+                    Button {
+                        viewModel.clear()
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .help("Clear entries")
+                }
+                .padding(8)
+
+                Divider()
+
+                // Status bar
+                HStack {
+                    if viewModel.isRunning {
+                        Circle()
+                            .fill(viewModel.isPaused ? .yellow : .green)
+                            .frame(width: 8, height: 8)
+                        Text(viewModel.isPaused ? "Paused" : "Streaming")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let error = viewModel.errorMessage {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(.yellow)
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.yellow)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    Text("\(viewModel.displayedCount) entries")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if !viewModel.filterText.isEmpty && viewModel.displayedCount != viewModel.entryCount {
+                        Text("(of \(viewModel.entryCount) total)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.bar)
+
+                Divider()
+
+                // Entries list
+                ScrollViewReader { proxy in
+                    List(viewModel.filteredEntries, selection: Binding(
+                        get: { selectedEntry?.id },
+                        set: { id in
+                            selectedEntry = viewModel.filteredEntries.first { $0.id == id }
+                        }
+                    )) { entry in
+                        LiveTailEntryRow(entry: entry)
+                            .id(entry.id)
+                            .tag(entry.id)
+                    }
+                    .listStyle(.plain)
+                    .font(.system(.caption, design: .monospaced))
+                    .onChange(of: viewModel.entries.count) { _, _ in
+                        if autoScroll, let last = viewModel.filteredEntries.last {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
+                    }
+                }
+            }
+
+            // Detail pane
+            if let entry = selectedEntry {
+                LogDetailView(record: entry.record)
+                    .frame(minWidth: 280, idealWidth: 320)
+            }
+        }
+        .onDisappear {
+            viewModel.stop()
+        }
+    }
+}
+
+struct LiveTailEntryRow: View {
+    let entry: LiveTailViewModel.LiveTailEntry
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(entry.displayTimestamp)
+                .foregroundStyle(.secondary)
+                .frame(width: 90, alignment: .leading)
+
+            if let level = entry.record["level"] ?? entry.record["severity"] {
+                Text(level.displayString)
+                    .fontWeight(.medium)
+                    .foregroundStyle(levelColor(level.displayString))
+                    .frame(width: 50, alignment: .leading)
+            }
+
+            Text(entry.summary)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func levelColor(_ level: String) -> Color {
+        switch level.lowercased() {
+        case "error", "fatal", "critical", "panic": return .red
+        case "warn", "warning": return .orange
+        case "info": return .blue
+        case "debug", "trace": return .secondary
+        default: return .primary
+        }
+    }
+}
