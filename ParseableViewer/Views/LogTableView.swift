@@ -570,12 +570,15 @@ struct LogRowView: View {
         .background {
             if isSelected {
                 Color.accentColor.opacity(0.2)
-            } else if let tint = severityRowTint(for: extractSeverity(from: record)) {
-                tint
-            } else if isAlternate {
-                Color.primary.opacity(0.02)
             } else {
-                Color.clear
+                ZStack {
+                    if isAlternate {
+                        Color.primary.opacity(0.02)
+                    }
+                    if let tint = severityRowTint(for: extractSeverity(from: record)) {
+                        tint
+                    }
+                }
             }
         }
     }
