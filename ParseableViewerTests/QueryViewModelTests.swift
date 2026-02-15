@@ -201,5 +201,73 @@ final class QueryViewModelTests: XCTestCase {
         vm.setDefaultQuery(stream: "stream\"name")
         XCTAssertTrue(vm.sqlQuery.contains("\"stream\"\"name\""))
     }
+
+    // MARK: - Column filter
+
+    func testAddColumnFilterIncludeStringValue() {
+        let vm = QueryViewModel()
+        vm.sqlQuery = "SELECT * FROM \"logs\" ORDER BY p_timestamp DESC LIMIT 1000"
+        vm.addColumnFilter(column: "level", value: .string("error"), exclude: false)
+        XCTAssertTrue(vm.sqlQuery.contains("WHERE \"level\" = 'error'"))
+        XCTAssertTrue(vm.sqlQuery.contains("ORDER BY"))
+    }
+
+    func testAddColumnFilterExcludeStringValue() {
+        let vm = QueryViewModel()
+        vm.sqlQuery = "SELECT * FROM \"logs\" ORDER BY p_timestamp DESC LIMIT 1000"
+        vm.addColumnFilter(column: "level", value: .string("debug"), exclude: true)
+        XCTAssertTrue(vm.sqlQuery.contains("WHERE \"level\" <> 'debug'"))
+        XCTAssertTrue(vm.sqlQuery.contains("ORDER BY"))
+    }
+
+    func testAddColumnFilterNullValue() {
+        let vm = QueryViewModel()
+        vm.sqlQuery = "SELECT * FROM \"logs\" ORDER BY p_timestamp DESC"
+        vm.addColumnFilter(column: "tag", value: nil, exclude: false)
+        XCTAssertTrue(vm.sqlQuery.contains("WHERE \"tag\" IS NULL"))
+    }
+
+    func testAddColumnFilterExcludeNullValue() {
+        let vm = QueryViewModel()
+        vm.sqlQuery = "SELECT * FROM \"logs\" ORDER BY p_timestamp DESC"
+        vm.addColumnFilter(column: "tag", value: .null, exclude: true)
+        XCTAssertTrue(vm.sqlQuery.contains("WHERE \"tag\" IS NOT NULL"))
+    }
+
+    func testAddColumnFilterAppendsToExistingWhere() {
+        let vm = QueryViewModel()
+        vm.sqlQuery = "SELECT * FROM \"logs\" WHERE \"level\" = 'error' ORDER BY p_timestamp DESC"
+        vm.addColumnFilter(column: "host", value: .string("web-1"), exclude: false)
+        XCTAssertTrue(vm.sqlQuery.contains("AND \"host\" = 'web-1'"))
+        XCTAssertTrue(vm.sqlQuery.contains("WHERE \"level\" = 'error'"))
+    }
+
+    func testAddColumnFilterIntValue() {
+        let vm = QueryViewModel()
+        vm.sqlQuery = "SELECT * FROM \"logs\""
+        vm.addColumnFilter(column: "status", value: .int(200), exclude: false)
+        XCTAssertTrue(vm.sqlQuery.contains("WHERE \"status\" = 200"))
+    }
+
+    func testAddColumnFilterNoOpOnEmptyQuery() {
+        let vm = QueryViewModel()
+        vm.sqlQuery = ""
+        vm.addColumnFilter(column: "level", value: .string("info"), exclude: false)
+        XCTAssertEqual(vm.sqlQuery, "")
+    }
+
+    func testAddColumnFilterQueryWithoutOrderBy() {
+        let vm = QueryViewModel()
+        vm.sqlQuery = "SELECT * FROM \"logs\""
+        vm.addColumnFilter(column: "level", value: .string("warn"), exclude: true)
+        XCTAssertTrue(vm.sqlQuery.contains("WHERE \"level\" <> 'warn'"))
+    }
+
+    func testAddColumnFilterEscapesSingleQuotesInValue() {
+        let vm = QueryViewModel()
+        vm.sqlQuery = "SELECT * FROM \"logs\""
+        vm.addColumnFilter(column: "msg", value: .string("it's a test"), exclude: false)
+        XCTAssertTrue(vm.sqlQuery.contains("'it''s a test'"))
+    }
 }
 

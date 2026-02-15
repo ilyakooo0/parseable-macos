@@ -75,6 +75,19 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
         }
     }
 
+    /// Returns a SQL literal representation of this value for use in WHERE clauses.
+    var sqlLiteral: String {
+        switch self {
+        case .null: return "NULL"
+        case .bool(let v): return v ? "true" : "false"
+        case .int(let v): return String(v)
+        case .double(let v): return String(v)
+        case .string(let v): return "'\(v.replacingOccurrences(of: "'", with: "''"))'"
+        case .array, .object:
+            return "'\(exportString.replacingOccurrences(of: "'", with: "''"))'"
+        }
+    }
+
     var isScalar: Bool {
         switch self {
         case .array, .object: return false

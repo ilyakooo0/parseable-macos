@@ -255,6 +255,41 @@ final class JSONValueTests: XCTestCase {
         XCTAssertEqual(records[0]["level"], .string("error"))
     }
 
+    // MARK: - sqlLiteral
+
+    func testSqlLiteralNull() {
+        XCTAssertEqual(JSONValue.null.sqlLiteral, "NULL")
+    }
+
+    func testSqlLiteralBool() {
+        XCTAssertEqual(JSONValue.bool(true).sqlLiteral, "true")
+        XCTAssertEqual(JSONValue.bool(false).sqlLiteral, "false")
+    }
+
+    func testSqlLiteralInt() {
+        XCTAssertEqual(JSONValue.int(42).sqlLiteral, "42")
+        XCTAssertEqual(JSONValue.int(-7).sqlLiteral, "-7")
+    }
+
+    func testSqlLiteralDouble() {
+        XCTAssertEqual(JSONValue.double(3.14).sqlLiteral, "3.14")
+    }
+
+    func testSqlLiteralString() {
+        XCTAssertEqual(JSONValue.string("hello").sqlLiteral, "'hello'")
+    }
+
+    func testSqlLiteralStringEscapesSingleQuotes() {
+        XCTAssertEqual(JSONValue.string("it's").sqlLiteral, "'it''s'")
+    }
+
+    func testSqlLiteralArray() {
+        let arr = JSONValue.array([.int(1), .int(2)])
+        let literal = arr.sqlLiteral
+        XCTAssertTrue(literal.hasPrefix("'"))
+        XCTAssertTrue(literal.hasSuffix("'"))
+    }
+
     // MARK: - LogRecord as typealias
 
     func testLogRecordDecoding() throws {
