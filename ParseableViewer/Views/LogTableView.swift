@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Computes the display width needed for a text string using the given font.
 private func measureTextWidth(_ text: String, font: NSFont) -> CGFloat {
@@ -224,6 +225,9 @@ struct LogHeaderView: View {
     var onMoveColumn: ((String, String) -> Void)?
     var onColumnFilter: ((_ column: String, _ value: JSONValue?, _ exclude: Bool) -> Void)?
 
+    @State private var draggedColumn: String?
+    @State private var dropTargetColumn: String?
+
     private static let maxFilterValues = 20
 
     private func uniqueValues(for column: String) -> [JSONValue] {
@@ -236,6 +240,15 @@ struct LogHeaderView: View {
             }
         }
         return result.sorted()
+    }
+
+    private func dropIndicatorAlignment(for targetColumn: String) -> Alignment {
+        guard let dragged = draggedColumn,
+              let fromIndex = columns.firstIndex(of: dragged),
+              let toIndex = columns.firstIndex(of: targetColumn) else {
+            return .leading
+        }
+        return fromIndex < toIndex ? .trailing : .leading
     }
 
     private func filterDisplayLabel(for value: JSONValue) -> String {
@@ -284,6 +297,28 @@ struct LogHeaderView: View {
                     )
                 }
                 .frame(width: columnWidths[column] ?? 120, alignment: .leading)
+                .background {
+                    if dropTargetColumn == column && draggedColumn != nil && draggedColumn != column {
+                        Color.accentColor.opacity(0.15)
+                    }
+                }
+                .overlay(alignment: dropIndicatorAlignment(for: column)) {
+                    if dropTargetColumn == column && draggedColumn != nil && draggedColumn != column {
+                        Rectangle()
+                            .fill(Color.accentColor)
+                            .frame(width: 2)
+                    }
+                }
+                .onDrag {
+                    draggedColumn = column
+                    return NSItemProvider(object: column as NSString)
+                }
+                .onDrop(of: [UTType.plainText], delegate: ColumnDropDelegate(
+                    column: column,
+                    draggedColumn: $draggedColumn,
+                    dropTargetColumn: $dropTargetColumn,
+                    onMoveColumn: onMoveColumn
+                ))
                 .contextMenu {
                     if let onMove = onMoveColumn {
                         if column != columns.first {
@@ -345,6 +380,50 @@ struct LogHeaderView: View {
         }
         .background(Color(nsColor: .controlBackgroundColor))
         .border(Color.secondary.opacity(0.2), width: 0.5)
+    }
+}
+
+// MARK: - ColumnDropDelegate
+
+private struct ColumnDropDelegate: DropDelegate {
+    let column: String
+    @Binding var draggedColumn: String?
+    @Binding var dropTargetColumn: String?
+    var onMoveColumn: ((String, String) -> Void)?
+
+    func dropEntered(info: DropInfo) {
+        guard let dragged = draggedColumn, dragged != column else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            dropTargetColumn = column
+        }
+    }
+
+    func dropExited(info: DropInfo) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if dropTargetColumn == column {
+                dropTargetColumn = nil
+            }
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let dragged = draggedColumn, dragged != column else {
+            draggedColumn = nil
+            dropTargetColumn = nil
+            return false
+        }
+        onMoveColumn?(dragged, column)
+        draggedColumn = nil
+        dropTargetColumn = nil
+        return true
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggedColumn != nil && draggedColumn != column
     }
 }
 
