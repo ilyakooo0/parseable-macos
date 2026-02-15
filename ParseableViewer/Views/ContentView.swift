@@ -48,7 +48,7 @@ struct MainContentView: View {
 
         VStack(spacing: 0) {
             // Tab bar
-            HStack(spacing: 0) {
+            HStack(spacing: 4) {
                 ForEach(AppState.AppTab.allCases) { tab in
                     TabButton(
                         title: tab.rawValue,
@@ -60,8 +60,8 @@ struct MainContentView: View {
                 }
                 Spacer()
             }
-            .padding(.horizontal, 8)
-            .padding(.top, 4)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
             .background(.bar)
 
             Divider()
