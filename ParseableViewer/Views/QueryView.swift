@@ -214,6 +214,7 @@ struct QueryView: View {
                     records: viewModel.filteredResults,
                     columns: viewModel.visibleColumns,
                     selectedRecord: $vm.selectedLogEntry,
+                    isLoading: viewModel.isLoading,
                     onCellFilter: { column, value, exclude in
                         viewModel.addColumnFilter(column: column, value: value, exclude: exclude)
                         Task {
