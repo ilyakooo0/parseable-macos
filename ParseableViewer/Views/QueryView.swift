@@ -22,6 +22,29 @@ struct QueryView: View {
 
                     Spacer()
 
+                    if !viewModel.queryHistory.isEmpty {
+                        Menu {
+                            ForEach(viewModel.queryHistory.prefix(15)) { entry in
+                                Button {
+                                    viewModel.sqlQuery = entry.sql
+                                } label: {
+                                    VStack(alignment: .leading) {
+                                        Text(entry.sql.prefix(80))
+                                        Text("\(entry.resultCount) rows - \(entry.executedAt.formatted(.dateTime.month().day().hour().minute()))")
+                                            .font(.caption2)
+                                    }
+                                }
+                            }
+                            Divider()
+                            Button("Clear History", role: .destructive) {
+                                viewModel.clearHistory()
+                            }
+                        } label: {
+                            Image(systemName: "clock.arrow.circlepath")
+                        }
+                        .help("Query history")
+                    }
+
                     Button {
                         showSaveQuerySheet = true
                     } label: {
@@ -76,6 +99,20 @@ struct QueryView: View {
                     )
                     .padding(.horizontal, 8)
                     .padding(.bottom, 4)
+
+                // Truncation warning
+                if viewModel.resultsTruncated {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                        Text("Results may be truncated. Increase the LIMIT or narrow your query to see all data.")
+                        Spacer()
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.orange.opacity(0.1))
+                }
 
                 // Status bar
                 HStack {

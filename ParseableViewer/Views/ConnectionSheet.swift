@@ -11,7 +11,9 @@ struct ConnectionSheet: View {
     @State private var username = ""
     @State private var password = ""
     @State private var isTesting = false
+    @State private var isSaving = false
     @State private var testResult: TestResult?
+    @State private var urlValidationError: String?
 
     enum TestResult {
         case success(String)
@@ -39,6 +41,15 @@ struct ConnectionSheet: View {
 
                 TextField("Server URL:", text: $url)
                     .textFieldStyle(.roundedBorder)
+                    .onChange(of: url) { _, newValue in
+                        urlValidationError = Self.validateURL(newValue)
+                    }
+
+                if let urlError = urlValidationError, !url.isEmpty {
+                    Text(urlError)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                }
 
                 TextField("Username:", text: $username)
                     .textFieldStyle(.roundedBorder)
@@ -89,7 +100,7 @@ struct ConnectionSheet: View {
                 Button("Test Connection") {
                     testConnection()
                 }
-                .disabled(url.isEmpty || username.isEmpty || isTesting)
+                .disabled(url.isEmpty || username.isEmpty || isTesting || urlValidationError != nil)
 
                 Button("Cancel") {
                     dismiss()
@@ -100,7 +111,7 @@ struct ConnectionSheet: View {
                     saveAndConnect()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(name.isEmpty || url.isEmpty || username.isEmpty)
+                .disabled(name.isEmpty || url.isEmpty || username.isEmpty || isSaving || urlValidationError != nil)
             }
             .padding()
         }
@@ -151,10 +162,35 @@ struct ConnectionSheet: View {
             appState.addConnection(conn)
         }
 
+        isSaving = true
+        testResult = nil
+
         Task {
             await appState.connect(to: conn)
+            await MainActor.run {
+                isSaving = false
+                if appState.errorMessage != nil {
+                    testResult = .failure(appState.errorMessage ?? "Connection failed")
+                } else {
+                    dismiss()
+                }
+            }
+        }
+    }
+
+    private static func validateURL(_ urlString: String) -> String? {
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        var normalized = trimmed
+        if !normalized.hasPrefix("http://") && !normalized.hasPrefix("https://") {
+            normalized = "https://\(normalized)"
         }
 
-        dismiss()
+        guard let url = URL(string: normalized),
+              url.host != nil else {
+            return "Invalid URL format"
+        }
+        return nil
     }
 }

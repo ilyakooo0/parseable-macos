@@ -12,14 +12,32 @@ final class QueryViewModel {
     var queryDuration: TimeInterval?
     var selectedLogEntry: LogRecord?
     var filterText = ""
+    var resultsTruncated = false
 
     // Time range
     var timeRangeOption: TimeRangeOption = .last1Hour
     var customStartDate = Calendar.current.date(byAdding: .hour, value: -1, to: Date()) ?? Date()
     var customEndDate = Date()
 
-    // Export
-    var showExportDialog = false
+    // Query history
+    var queryHistory: [QueryHistoryEntry] = []
+    private static let maxHistory = 50
+
+    struct QueryHistoryEntry: Identifiable, Codable {
+        let id: UUID
+        let sql: String
+        let executedAt: Date
+        let resultCount: Int
+        let duration: TimeInterval
+
+        init(sql: String, resultCount: Int, duration: TimeInterval) {
+            self.id = UUID()
+            self.sql = sql
+            self.executedAt = Date()
+            self.resultCount = resultCount
+            self.duration = duration
+        }
+    }
 
     enum TimeRangeOption: String, CaseIterable, Identifiable {
         case last5Min = "Last 5 minutes"
@@ -36,17 +54,18 @@ final class QueryViewModel {
 
         func dateRange() -> (start: Date, end: Date) {
             let now = Date()
+            let cal = Calendar.current
             let start: Date
             switch self {
-            case .last5Min: start = Calendar.current.date(byAdding: .minute, value: -5, to: now)!
-            case .last15Min: start = Calendar.current.date(byAdding: .minute, value: -15, to: now)!
-            case .last30Min: start = Calendar.current.date(byAdding: .minute, value: -30, to: now)!
-            case .last1Hour: start = Calendar.current.date(byAdding: .hour, value: -1, to: now)!
-            case .last6Hours: start = Calendar.current.date(byAdding: .hour, value: -6, to: now)!
-            case .last24Hours: start = Calendar.current.date(byAdding: .hour, value: -24, to: now)!
-            case .last7Days: start = Calendar.current.date(byAdding: .day, value: -7, to: now)!
-            case .last30Days: start = Calendar.current.date(byAdding: .day, value: -30, to: now)!
-            case .custom: start = now // Overridden by custom dates
+            case .last5Min: start = cal.date(byAdding: .minute, value: -5, to: now) ?? now
+            case .last15Min: start = cal.date(byAdding: .minute, value: -15, to: now) ?? now
+            case .last30Min: start = cal.date(byAdding: .minute, value: -30, to: now) ?? now
+            case .last1Hour: start = cal.date(byAdding: .hour, value: -1, to: now) ?? now
+            case .last6Hours: start = cal.date(byAdding: .hour, value: -6, to: now) ?? now
+            case .last24Hours: start = cal.date(byAdding: .hour, value: -24, to: now) ?? now
+            case .last7Days: start = cal.date(byAdding: .day, value: -7, to: now) ?? now
+            case .last30Days: start = cal.date(byAdding: .day, value: -30, to: now) ?? now
+            case .custom: start = now
             }
             return (start, now)
         }
@@ -75,6 +94,15 @@ final class QueryViewModel {
         }
     }
 
+    private var queryLimit: Int {
+        let stored = UserDefaults.standard.integer(forKey: "maxQueryResults")
+        return stored > 0 ? stored : 1000
+    }
+
+    init() {
+        queryHistory = Self.loadHistory()
+    }
+
     @MainActor
     func executeQuery(client: ParseableClient?, stream: String?) async {
         guard let client else {
@@ -82,19 +110,21 @@ final class QueryViewModel {
             return
         }
 
+        let limit = queryLimit
         let sql: String
         if sqlQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             guard let stream else {
                 errorMessage = "Select a stream or enter a SQL query"
                 return
             }
-            sql = "SELECT * FROM \"\(stream)\" ORDER BY p_timestamp DESC LIMIT 1000"
+            sql = "SELECT * FROM \"\(stream)\" ORDER BY p_timestamp DESC LIMIT \(limit)"
         } else {
             sql = sqlQuery
         }
 
         isLoading = true
         errorMessage = nil
+        resultsTruncated = false
         let startTime = CFAbsoluteTimeGetCurrent()
 
         do {
@@ -102,29 +132,15 @@ final class QueryViewModel {
             queryDuration = CFAbsoluteTimeGetCurrent() - startTime
             resultCount = results.count
 
-            // Extract unique column names preserving a sensible order
-            var seen = Set<String>()
-            var orderedColumns: [String] = []
-            // Prioritize common fields
-            let priorityFields = ["p_timestamp", "p_tags", "p_metadata", "level", "severity", "message", "msg"]
-            for field in priorityFields {
-                for record in results {
-                    if record[field] != nil && !seen.contains(field) {
-                        seen.insert(field)
-                        orderedColumns.append(field)
-                        break
-                    }
-                }
-            }
-            for record in results {
-                for key in record.keys.sorted() {
-                    if !seen.contains(key) {
-                        seen.insert(key)
-                        orderedColumns.append(key)
-                    }
-                }
-            }
-            columns = orderedColumns
+            // Detect if results were likely truncated
+            resultsTruncated = results.count == limit
+
+            // Extract columns in a single pass, with priority fields first
+            columns = extractColumns(from: results)
+
+            // Record in history
+            let entry = QueryHistoryEntry(sql: sql, resultCount: resultCount, duration: queryDuration ?? 0)
+            addToHistory(entry)
         } catch {
             errorMessage = error.localizedDescription
             results = []
@@ -132,6 +148,24 @@ final class QueryViewModel {
         }
 
         isLoading = false
+    }
+
+    /// Single-pass column extraction with priority ordering.
+    func extractColumns(from records: [LogRecord]) -> [String] {
+        let priorityFields = ["p_timestamp", "p_tags", "p_metadata", "level", "severity", "message", "msg"]
+        var allKeys = Set<String>()
+        for record in records {
+            allKeys.formUnion(record.keys)
+        }
+
+        var ordered: [String] = []
+        for field in priorityFields {
+            if allKeys.remove(field) != nil {
+                ordered.append(field)
+            }
+        }
+        ordered.append(contentsOf: allKeys.sorted())
+        return ordered
     }
 
     func exportAsJSON() -> String {
@@ -170,7 +204,37 @@ final class QueryViewModel {
 
     func setDefaultQuery(stream: String) {
         if sqlQuery.isEmpty {
-            sqlQuery = "SELECT * FROM \"\(stream)\" ORDER BY p_timestamp DESC LIMIT 1000"
+            sqlQuery = "SELECT * FROM \"\(stream)\" ORDER BY p_timestamp DESC LIMIT \(queryLimit)"
+        }
+    }
+
+    // MARK: - Query History
+
+    private func addToHistory(_ entry: QueryHistoryEntry) {
+        // Deduplicate consecutive identical queries
+        if queryHistory.first?.sql == entry.sql { return }
+        queryHistory.insert(entry, at: 0)
+        if queryHistory.count > Self.maxHistory {
+            queryHistory = Array(queryHistory.prefix(Self.maxHistory))
+        }
+        Self.saveHistory(queryHistory)
+    }
+
+    func clearHistory() {
+        queryHistory = []
+        Self.saveHistory([])
+    }
+
+    private static let historyKey = "parseable_query_history"
+
+    private static func loadHistory() -> [QueryHistoryEntry] {
+        guard let data = UserDefaults.standard.data(forKey: historyKey) else { return [] }
+        return (try? JSONDecoder().decode([QueryHistoryEntry].self, from: data)) ?? []
+    }
+
+    private static func saveHistory(_ history: [QueryHistoryEntry]) {
+        if let data = try? JSONEncoder().encode(history) {
+            UserDefaults.standard.set(data, forKey: historyKey)
         }
     }
 }

@@ -38,3 +38,17 @@ targets:
           SWIFT_COMPILATION_MODE: "wholemodule"
     entitlements:
       path: ParseableViewer/ParseableViewer.entitlements
+
+  ParseableViewerTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: ParseableViewerTests
+        excludes:
+          - "**/.DS_Store"
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+    dependencies:
+      - target: ParseableViewer

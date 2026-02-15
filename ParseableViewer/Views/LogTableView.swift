@@ -1,5 +1,30 @@
 import SwiftUI
 
+/// Shared column width logic used by both header and row views.
+func columnWidth(for column: String) -> CGFloat {
+    switch column {
+    case "p_timestamp", "timestamp", "@timestamp", "time":
+        return 200
+    case "level", "severity", "log_level":
+        return 80
+    case "message", "msg", "body", "log":
+        return 400
+    default:
+        return 160
+    }
+}
+
+/// Shared log-level color mapping.
+func levelColor(for value: String) -> Color {
+    switch value.lowercased() {
+    case "error", "fatal", "critical", "panic": return .red
+    case "warn", "warning": return .orange
+    case "info": return .blue
+    case "debug", "trace": return .secondary
+    default: return .primary
+    }
+}
+
 struct LogTableView: View {
     let records: [LogRecord]
     let columns: [String]
@@ -28,7 +53,6 @@ struct LogTableView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             HSplitView {
-                // Table
                 ScrollView([.horizontal, .vertical]) {
                     LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                         Section {
@@ -54,7 +78,6 @@ struct LogTableView: View {
                 }
                 .frame(minWidth: 400)
 
-                // Detail pane
                 if let selected = selectedRecord {
                     LogDetailView(record: selected)
                         .frame(minWidth: 300, idealWidth: 350)
@@ -99,19 +122,6 @@ struct LogHeaderView: View {
         .background(Color(nsColor: .controlBackgroundColor))
         .border(Color.secondary.opacity(0.2), width: 0.5)
     }
-
-    private func columnWidth(for column: String) -> CGFloat {
-        switch column {
-        case "p_timestamp", "timestamp", "@timestamp", "time":
-            return 200
-        case "level", "severity", "log_level":
-            return 80
-        case "message", "msg", "body", "log":
-            return 400
-        default:
-            return 160
-        }
-    }
 }
 
 struct LogRowView: View {
@@ -140,30 +150,10 @@ struct LogRowView: View {
         )
     }
 
-    private func columnWidth(for column: String) -> CGFloat {
-        switch column {
-        case "p_timestamp", "timestamp", "@timestamp", "time":
-            return 200
-        case "level", "severity", "log_level":
-            return 80
-        case "message", "msg", "body", "log":
-            return 400
-        default:
-            return 160
-        }
-    }
-
     private func colorForValue(column: String, value: JSONValue?) -> Color {
         guard let value else { return .secondary }
         if column == "level" || column == "severity" || column == "log_level" {
-            let str = value.displayString.lowercased()
-            switch str {
-            case "error", "fatal", "critical", "panic": return .red
-            case "warn", "warning": return .orange
-            case "info": return .blue
-            case "debug", "trace": return .secondary
-            default: return .primary
-            }
+            return levelColor(for: value.displayString)
         }
         return .primary
     }

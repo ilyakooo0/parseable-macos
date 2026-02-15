@@ -12,9 +12,18 @@ final class ConnectionStore {
     }
 
     static func saveConnections(_ connections: [ServerConnection]) {
+        for connection in connections {
+            if !connection.password.isEmpty {
+                KeychainService.savePassword(connection.password, for: connection.id)
+            }
+        }
         if let data = try? JSONEncoder().encode(connections) {
             UserDefaults.standard.set(data, forKey: storageKey)
         }
+    }
+
+    static func deleteConnection(_ connection: ServerConnection) {
+        KeychainService.deletePassword(for: connection.id)
     }
 
     static func loadActiveConnectionID() -> UUID? {

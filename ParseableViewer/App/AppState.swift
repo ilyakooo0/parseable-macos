@@ -146,6 +146,7 @@ final class AppState {
 
     func removeConnection(_ connection: ServerConnection) {
         connections.removeAll { $0.id == connection.id }
+        ConnectionStore.deleteConnection(connection)
         ConnectionStore.saveConnections(connections)
         if activeConnection?.id == connection.id {
             disconnect()

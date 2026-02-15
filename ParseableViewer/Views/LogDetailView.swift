@@ -3,6 +3,7 @@ import SwiftUI
 struct LogDetailView: View {
     let record: LogRecord
     @State private var viewMode: ViewMode = .formatted
+    @State private var showCopyConfirmation = false
 
     enum ViewMode: String, CaseIterable {
         case formatted = "Formatted"
@@ -27,7 +28,8 @@ struct LogDetailView: View {
                 Button {
                     copyToClipboard()
                 } label: {
-                    Image(systemName: "doc.on.doc")
+                    Image(systemName: showCopyConfirmation ? "checkmark" : "doc.on.doc")
+                        .foregroundStyle(showCopyConfirmation ? .green : .primary)
                 }
                 .help("Copy to clipboard")
             }
@@ -54,6 +56,11 @@ struct LogDetailView: View {
            let json = String(data: data, encoding: .utf8) {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(json, forType: .string)
+
+            showCopyConfirmation = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                showCopyConfirmation = false
+            }
         }
     }
 }

@@ -44,21 +44,24 @@ struct TimeRangePicker: View {
                     // Quick presets
                     Menu("Presets") {
                         Button("Last hour") {
-                            customStart = Calendar.current.date(byAdding: .hour, value: -1, to: Date())!
-                            customEnd = Date()
+                            let now = Date()
+                            customStart = Calendar.current.date(byAdding: .hour, value: -1, to: now) ?? now.addingTimeInterval(-3600)
+                            customEnd = now
                         }
                         Button("Today") {
                             customStart = Calendar.current.startOfDay(for: Date())
                             customEnd = Date()
                         }
                         Button("Yesterday") {
-                            let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+                            let now = Date()
+                            let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now.addingTimeInterval(-86400)
                             customStart = Calendar.current.startOfDay(for: yesterday)
-                            customEnd = Calendar.current.startOfDay(for: Date())
+                            customEnd = Calendar.current.startOfDay(for: now)
                         }
                         Button("Last 7 days") {
-                            customStart = Calendar.current.date(byAdding: .day, value: -7, to: Date())!
-                            customEnd = Date()
+                            let now = Date()
+                            customStart = Calendar.current.date(byAdding: .day, value: -7, to: now) ?? now.addingTimeInterval(-604800)
+                            customEnd = now
                         }
                     }
 

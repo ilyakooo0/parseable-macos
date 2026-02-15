@@ -7,12 +7,13 @@ final class LiveTailViewModel {
     var isRunning = false
     var isPaused = false
     var filterText = ""
+    var pollInterval: TimeInterval = 2.0
     var maxEntries = 5000
     var errorMessage: String?
 
     private var timer: Timer?
     private var lastTimestamp: Date?
-    private var seenHashes: Set<Int> = []
+    private var seenFingerprints: Set<String> = []
 
     struct LiveTailEntry: Identifiable {
         let id = UUID()
@@ -37,14 +38,20 @@ final class LiveTailViewModel {
     func start(client: ParseableClient?, stream: String?) {
         guard let client, let stream, !isRunning else { return }
 
+        // Read settings from UserDefaults (set by SettingsView @AppStorage)
+        let storedInterval = UserDefaults.standard.double(forKey: "liveTailPollInterval")
+        if storedInterval >= 1 { pollInterval = storedInterval }
+        let storedMax = UserDefaults.standard.integer(forKey: "liveTailMaxEntries")
+        if storedMax > 0 { maxEntries = storedMax }
+
         isRunning = true
         isPaused = false
         errorMessage = nil
         entries = []
-        seenHashes = []
+        seenFingerprints = []
         lastTimestamp = Date()
 
-        timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
             guard let self, !self.isPaused else { return }
             Task { @MainActor in
                 await self.poll(client: client, stream: stream)
@@ -67,13 +74,15 @@ final class LiveTailViewModel {
     @MainActor
     func clear() {
         entries = []
-        seenHashes = []
+        seenFingerprints = []
     }
 
     @MainActor
     private func poll(client: ParseableClient, stream: String) async {
         let now = Date()
-        let queryStart = lastTimestamp ?? Calendar.current.date(byAdding: .second, value: -30, to: now)!
+        let queryStart = lastTimestamp
+            ?? Calendar.current.date(byAdding: .second, value: -30, to: now)
+            ?? now.addingTimeInterval(-30)
         let sql = "SELECT * FROM \"\(stream)\" ORDER BY p_timestamp DESC LIMIT 200"
 
         do {
@@ -85,9 +94,9 @@ final class LiveTailViewModel {
             var newEntries: [LiveTailEntry] = []
 
             for record in records {
-                let hash = record.hashValue
-                guard !seenHashes.contains(hash) else { continue }
-                seenHashes.insert(hash)
+                let fp = Self.fingerprint(for: record)
+                guard !seenFingerprints.contains(fp) else { continue }
+                seenFingerprints.insert(fp)
 
                 let timestamp = parseTimestamp(from: record) ?? now
                 let summary = buildSummary(from: record)
@@ -103,11 +112,15 @@ final class LiveTailViewModel {
             if !newEntries.isEmpty {
                 entries.append(contentsOf: newEntries.sorted { $0.timestamp < $1.timestamp })
 
-                // Trim if exceeding max
                 if entries.count > maxEntries {
                     let excess = entries.count - maxEntries
                     entries.removeFirst(excess)
                 }
+            }
+
+            // Prune stale fingerprints to bound memory
+            if seenFingerprints.count > maxEntries * 2 {
+                seenFingerprints = Set(entries.map { Self.fingerprint(for: $0.record) })
             }
 
             lastTimestamp = now
@@ -115,6 +128,27 @@ final class LiveTailViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Deterministic content-based fingerprint using sorted key-value pairs and FNV-1a.
+    private static func fingerprint(for record: LogRecord) -> String {
+        var h0: UInt64 = 14695981039346656037
+        var h1: UInt64 = 14695981039346656037 &* 31
+        for key in record.keys.sorted() {
+            for byte in key.utf8 {
+                h0 = (h0 ^ UInt64(byte)) &* 1099511628211
+                h1 = (h1 ^ UInt64(byte)) &* 6700417
+            }
+            h0 = (h0 ^ 0) &* 1099511628211 // separator
+            if let val = record[key] {
+                for byte in val.displayString.utf8 {
+                    h0 = (h0 ^ UInt64(byte)) &* 1099511628211
+                    h1 = (h1 ^ UInt64(byte)) &* 6700417
+                }
+            }
+            h1 = (h1 ^ 0xFF) &* 6700417 // field separator
+        }
+        return String(h0, radix: 36) + String(h1, radix: 36)
     }
 
     private func parseTimestamp(from record: LogRecord) -> Date? {
@@ -127,7 +161,6 @@ final class LiveTailViewModel {
             if let date = formatter.date(from: str) {
                 return date
             }
-            // Try without fractional seconds
             formatter.formatOptions = [.withInternetDateTime]
             return formatter.date(from: str)
         }
@@ -137,18 +170,15 @@ final class LiveTailViewModel {
     private func buildSummary(from record: LogRecord) -> String {
         var parts: [String] = []
 
-        // Level/severity
         if let level = record["level"] ?? record["severity"] ?? record["log_level"] {
             parts.append("[\(level.displayString)]")
         }
 
-        // Message
         if let msg = record["message"] ?? record["msg"] ?? record["body"] ?? record["log"] {
             parts.append(msg.displayString)
         }
 
         if parts.isEmpty {
-            // Fallback: show first few scalar fields
             let scalarFields = record
                 .filter { $0.key != "p_timestamp" && $0.key != "p_tags" && $0.key != "p_metadata" }
                 .sorted { $0.key < $1.key }

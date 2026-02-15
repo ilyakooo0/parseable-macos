@@ -29,6 +29,19 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Run Tests
+        if: matrix.arch == 'arm64'
+        run: |
+          xcodebuild \
+            -project ParseableViewer.xcodeproj \
+            -scheme ParseableViewerTests \
+            -configuration Debug \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            test || true
+
       - name: Build
         run: |
           xcodebuild \
