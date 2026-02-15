@@ -134,12 +134,11 @@ final class LiveTailViewModel {
                     let excess = entries.count - maxEntries
                     droppedCount += excess
                     entries.removeFirst(excess)
-                }
-            }
 
-            // Prune stale fingerprints to bound memory
-            if seenFingerprints.count > maxEntries * 2 {
-                seenFingerprints = Set(entries.map { Self.fingerprint(for: $0.record) })
+                    // Rebuild fingerprint set from remaining entries to bound memory
+                    // and ensure dropped entries can be re-detected if they reappear.
+                    seenFingerprints = Set(entries.map { Self.fingerprint(for: $0.record) })
+                }
             }
 
             lastTimestamp = now

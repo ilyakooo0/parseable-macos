@@ -105,8 +105,8 @@ final class AppState {
         do {
             let newClient = try ParseableClient(connection: connection)
 
-            // Test connection
-            _ = try await newClient.checkHealth()
+            // Test connection — throws on non-200 or network failure
+            try await newClient.checkHealth()
 
             self.client = newClient
             self.activeConnection = connection

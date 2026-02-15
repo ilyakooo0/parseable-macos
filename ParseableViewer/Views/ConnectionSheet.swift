@@ -142,13 +142,9 @@ struct ConnectionSheet: View {
             do {
                 let conn = ServerConnection(name: name, url: url, username: username, password: password)
                 let client = try ParseableClient(connection: conn)
-                let healthy = try await client.checkHealth()
+                try await client.checkHealth()
                 await MainActor.run {
-                    if healthy {
-                        testResult = .success("Connection successful")
-                    } else {
-                        testResult = .failure("Server is not healthy")
-                    }
+                    testResult = .success("Connection successful")
                     isTesting = false
                 }
             } catch {

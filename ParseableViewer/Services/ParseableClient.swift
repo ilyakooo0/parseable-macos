@@ -133,11 +133,18 @@ final class ParseableClient: Sendable {
 
     // MARK: - Health / System
 
-    func checkHealth() async throws -> Bool {
+    func checkHealth() async throws {
         let request = try buildRequest(method: "HEAD", path: "/api/v1/liveness")
         let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else { return false }
-        return httpResponse.statusCode == 200
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ParseableError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 {
+            throw ParseableError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw ParseableError.serverError(httpResponse.statusCode, "Health check failed")
+        }
     }
 
     func getAbout() async throws -> ServerAbout {
@@ -152,37 +159,40 @@ final class ParseableClient: Sendable {
         return try JSONDecoder().decode([LogStream].self, from: data)
     }
 
-    private static func encodePathComponent(_ name: String) -> String {
+    private static func encodePathComponent(_ name: String) throws -> String {
         // Use a restrictive character set for path segments: exclude /?#[]@!$&'()*+,;=
         var allowed = CharacterSet.urlPathAllowed
         allowed.remove(charactersIn: "/?#[]@!$&'()*+,;=")
-        return name.addingPercentEncoding(withAllowedCharacters: allowed) ?? name
+        guard let encoded = name.addingPercentEncoding(withAllowedCharacters: allowed) else {
+            throw ParseableError.invalidURL
+        }
+        return encoded
     }
 
     func createStream(name: String) async throws {
-        let encoded = Self.encodePathComponent(name)
+        let encoded = try Self.encodePathComponent(name)
         _ = try await performRequest(method: "PUT", path: "/api/v1/logstream/\(encoded)")
     }
 
     func deleteStream(name: String) async throws {
-        let encoded = Self.encodePathComponent(name)
+        let encoded = try Self.encodePathComponent(name)
         _ = try await performRequest(method: "DELETE", path: "/api/v1/logstream/\(encoded)")
     }
 
     func getStreamSchema(stream: String) async throws -> StreamSchema {
-        let encoded = Self.encodePathComponent(stream)
+        let encoded = try Self.encodePathComponent(stream)
         let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/schema")
         return try JSONDecoder().decode(StreamSchema.self, from: data)
     }
 
     func getStreamStats(stream: String) async throws -> StreamStats {
-        let encoded = Self.encodePathComponent(stream)
+        let encoded = try Self.encodePathComponent(stream)
         let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/stats")
         return try JSONDecoder().decode(StreamStats.self, from: data)
     }
 
     func getStreamInfo(stream: String) async throws -> StreamInfo {
-        let encoded = Self.encodePathComponent(stream)
+        let encoded = try Self.encodePathComponent(stream)
         let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/info")
         return try JSONDecoder().decode(StreamInfo.self, from: data)
     }
@@ -229,7 +239,7 @@ final class ParseableClient: Sendable {
                 throw error
             }
         }
-        let encoded = Self.encodePathComponent(stream)
+        let encoded = try Self.encodePathComponent(stream)
         let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/alert")
         return try JSONDecoder().decode(AlertConfig.self, from: data)
     }
@@ -237,7 +247,7 @@ final class ParseableClient: Sendable {
     // MARK: - Retention
 
     func getRetention(stream: String) async throws -> [RetentionConfig] {
-        let encoded = Self.encodePathComponent(stream)
+        let encoded = try Self.encodePathComponent(stream)
         let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/retention")
         // Handle both array and single object response
         if let array = try? JSONDecoder().decode([RetentionConfig].self, from: data) {

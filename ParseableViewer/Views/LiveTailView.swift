@@ -147,8 +147,14 @@ struct LiveTailView: View {
                     .listStyle(.plain)
                     .font(.system(.caption, design: .monospaced))
                     .onChange(of: viewModel.entries.count) { _, _ in
-                        if autoScroll, let last = viewModel.filteredEntries.last {
-                            proxy.scrollTo(last.id, anchor: .bottom)
+                        guard autoScroll else { return }
+                        // When a filter is active, scroll to the last filtered entry;
+                        // when no filter, scroll to the absolute last entry.
+                        let target = viewModel.filterText.isEmpty
+                            ? viewModel.entries.last
+                            : viewModel.filteredEntries.last
+                        if let target {
+                            proxy.scrollTo(target.id, anchor: .bottom)
                         }
                     }
                 }
@@ -162,6 +168,11 @@ struct LiveTailView: View {
         }
         .onDisappear {
             viewModel.stop()
+        }
+        .onChange(of: appState.selectedStream) { _, _ in
+            if viewModel.isRunning {
+                viewModel.stop()
+            }
         }
     }
 }
