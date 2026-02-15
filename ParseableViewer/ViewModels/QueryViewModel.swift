@@ -21,8 +21,9 @@ final class QueryViewModel {
     var queryDuration: TimeInterval?
     var selectedLogEntry: LogRecord?
     var filterText = "" {
-        didSet { updateFilteredResults() }
+        didSet { debouncedUpdateFilter() }
     }
+    private var filterTask: Task<Void, Never>?
     var resultsTruncated = false
 
     // Schema fields for autocomplete
@@ -247,6 +248,19 @@ final class QueryViewModel {
     }
 
     private(set) var filteredResults: [LogRecord] = []
+
+    private func debouncedUpdateFilter() {
+        filterTask?.cancel()
+        if filterText.isEmpty {
+            updateFilteredResults()
+            return
+        }
+        filterTask = Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            updateFilteredResults()
+        }
+    }
 
     private func updateFilteredResults() {
         if filterText.isEmpty {

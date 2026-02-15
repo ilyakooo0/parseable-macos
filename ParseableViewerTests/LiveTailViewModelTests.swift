@@ -216,7 +216,7 @@ final class LiveTailViewModelTests: XCTestCase {
     func testFilteredEntriesEmptyFilter() {
         let vm = LiveTailViewModel()
         vm.filterText = ""
-        XCTAssertEqual(vm.filteredEntries.count, vm.entries.count)
+        XCTAssertEqual(vm.cachedFilteredEntries.count, vm.entries.count)
     }
 
     func testStopResetsRunningState() {

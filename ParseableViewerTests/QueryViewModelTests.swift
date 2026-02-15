@@ -61,7 +61,7 @@ final class QueryViewModelTests: XCTestCase {
         XCTAssertEqual(vm.filteredResults.count, 2)
     }
 
-    func testFilteredResultsMatchesContent() {
+    func testFilteredResultsMatchesContent() async {
         let vm = QueryViewModel()
         vm.results = [
             ["message": .string("hello world")],
@@ -69,16 +69,18 @@ final class QueryViewModelTests: XCTestCase {
             ["message": .string("Hello there")]
         ]
         vm.filterText = "hello"
+        try? await Task.sleep(for: .milliseconds(200))
         XCTAssertEqual(vm.filteredResults.count, 2) // case-insensitive
     }
 
-    func testFilteredResultsNoMatch() {
+    func testFilteredResultsNoMatch() async {
         let vm = QueryViewModel()
         vm.results = [
             ["message": .string("hello")],
             ["message": .string("world")]
         ]
         vm.filterText = "xyz"
+        try? await Task.sleep(for: .milliseconds(200))
         XCTAssertEqual(vm.filteredResults.count, 0)
     }
 

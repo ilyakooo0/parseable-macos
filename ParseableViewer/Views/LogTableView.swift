@@ -157,6 +157,7 @@ struct LogTableView: View {
     @State private var selectedIndex: Int?
     @State private var cachedSorted: [LogRecord] = []
     @State private var sortTask: Task<Void, Never>?
+    @State private var widthTask: Task<Void, Never>?
     @State private var columnWidths: [String: CGFloat] = [:]
 
     var body: some View {
@@ -229,8 +230,14 @@ struct LogTableView: View {
                         .controlSize(.large)
                 }
             }
-            .onChange(of: records) { _, _ in
-                columnWidths = computeColumnWidths(columns: columns, records: records)
+            .onChange(of: records) { _, newRecords in
+                widthTask?.cancel()
+                let cols = columns
+                widthTask = Task.detached(priority: .userInitiated) {
+                    let widths = computeColumnWidths(columns: cols, records: newRecords)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run { columnWidths = widths }
+                }
                 debouncedRebuildSort()
             }
             .onChange(of: sortColumn) { _, _ in debouncedRebuildSort() }
@@ -247,7 +254,29 @@ struct LogTableView: View {
         sortTask = Task {
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
-            rebuildSort()
+            let recs = records
+            let col = sortColumn
+            let asc = sortAscending
+            let sorted: [LogRecord]
+            if let col {
+                sorted = await Task.detached(priority: .userInitiated) {
+                    recs.sorted { a, b in
+                        let aVal = a[col] ?? .null
+                        let bVal = b[col] ?? .null
+                        return asc ? aVal < bVal : bVal < aVal
+                    }
+                }.value
+            } else {
+                sorted = recs
+            }
+            guard !Task.isCancelled else { return }
+            cachedSorted = sorted
+            if let selectedRecord,
+               let idx = cachedSorted.firstIndex(where: { $0 == selectedRecord }) {
+                selectedIndex = idx
+            } else {
+                selectedIndex = nil
+            }
         }
     }
 
@@ -323,10 +352,14 @@ struct LogHeaderView: View {
 
     @State private var draggedColumn: String?
     @State private var dropTargetColumn: String?
+    @State private var uniqueValuesCache: [String: [JSONValue]] = [:]
 
     private static let maxFilterValues = 20
 
     private func uniqueValues(for column: String) -> [JSONValue] {
+        if let cached = uniqueValuesCache[column] {
+            return cached
+        }
         var seen = Set<JSONValue>()
         var result: [JSONValue] = []
         for record in records {
@@ -335,7 +368,9 @@ struct LogHeaderView: View {
                 result.append(value)
             }
         }
-        return result.sorted()
+        let sorted = result.sorted()
+        uniqueValuesCache[column] = sorted
+        return sorted
     }
 
     private func dropIndicatorAlignment(for targetColumn: String) -> Alignment {
@@ -476,6 +511,9 @@ struct LogHeaderView: View {
         }
         .background(Color(nsColor: .controlBackgroundColor))
         .border(Color.secondary.opacity(0.2), width: 0.5)
+        .onChange(of: records.count) { _, _ in
+            uniqueValuesCache = [:]
+        }
     }
 }
 

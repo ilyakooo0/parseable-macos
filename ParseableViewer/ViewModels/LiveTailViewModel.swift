@@ -7,7 +7,9 @@ final class LiveTailViewModel {
     var entries: [LiveTailEntry] = []
     var isRunning = false
     var isPaused = false
-    var filterText = ""
+    var filterText = "" {
+        didSet { rebuildFilteredEntries() }
+    }
     var columnFilters: [ColumnFilter] = []
     var pollInterval: TimeInterval = 2.0
     var maxEntries = 5000
@@ -73,10 +75,12 @@ final class LiveTailViewModel {
         }
     }
 
-    var filteredEntries: [LiveTailEntry] {
+    private(set) var cachedFilteredEntries: [LiveTailEntry] = []
+    private(set) var filteredEntriesGeneration: Int = 0
+
+    private func rebuildFilteredEntries() {
         var result = entries
 
-        // Apply column filters
         for filter in columnFilters {
             result = result.filter { entry in
                 let recordValue = entry.record[filter.column]
@@ -90,7 +94,6 @@ final class LiveTailViewModel {
             }
         }
 
-        // Apply text filter
         if !filterText.isEmpty {
             result = result.filter { entry in
                 entry.summary.localizedCaseInsensitiveContains(filterText) ||
@@ -98,25 +101,29 @@ final class LiveTailViewModel {
             }
         }
 
-        return result
+        cachedFilteredEntries = result
+        filteredEntriesGeneration += 1
     }
 
     func addColumnFilter(column: String, value: JSONValue?, exclude: Bool) {
         // Remove any existing filter on the same column with the same value
         columnFilters.removeAll { $0.column == column && $0.value == value && $0.exclude == exclude }
         columnFilters.append(ColumnFilter(column: column, value: value, exclude: exclude))
+        rebuildFilteredEntries()
     }
 
     func removeColumnFilter(_ filter: ColumnFilter) {
         columnFilters.removeAll { $0.id == filter.id }
+        rebuildFilteredEntries()
     }
 
     func clearColumnFilters() {
         columnFilters.removeAll()
+        rebuildFilteredEntries()
     }
 
     var entryCount: Int { entries.count }
-    var displayedCount: Int { filteredEntries.count }
+    var displayedCount: Int { cachedFilteredEntries.count }
 
     func start(client: ParseableClient?, stream: String?) {
         guard let client, let stream, !isRunning else { return }
@@ -141,6 +148,7 @@ final class LiveTailViewModel {
         hiddenColumns = []
         columnFilters = []
         currentStream = stream
+        rebuildFilteredEntries()
 
         timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -169,6 +177,7 @@ final class LiveTailViewModel {
         columnOrder = []
         hiddenColumns = []
         columnFilters = []
+        rebuildFilteredEntries()
     }
 
     // MARK: - Column Management
@@ -337,6 +346,7 @@ final class LiveTailViewModel {
                 updateColumns(stream: stream)
             }
 
+            rebuildFilteredEntries()
             lastTimestamp = now
             lastPollTime = now
             errorMessage = nil
@@ -363,16 +373,72 @@ final class LiveTailViewModel {
             }
             h0 = (h0 ^ 0) &* 1099511628211 // separator
             if let val = record[key] {
-                // Use exportString so nested objects/arrays contribute their
-                // actual content to the hash, not just their field count.
-                for byte in val.exportString.utf8 {
-                    h0 = (h0 ^ UInt64(byte)) &* 1099511628211
-                    h1 = (h1 ^ UInt64(byte)) &* 6700417
-                }
+                hashJSONValue(val, h0: &h0, h1: &h1)
             }
             h1 = (h1 ^ 0xFF) &* 6700417 // field separator
         }
         return String(h0, radix: 36) + String(h1, radix: 36)
+    }
+
+    /// Recursively hashes a JSONValue tree without allocating intermediate strings.
+    /// Uses type-discriminator bytes to prevent cross-type collisions.
+    private static func hashJSONValue(_ value: JSONValue, h0: inout UInt64, h1: inout UInt64) {
+        switch value {
+        case .null:
+            h0 = (h0 ^ 0x00) &* 1099511628211
+            h1 = (h1 ^ 0x00) &* 6700417
+        case .bool(let b):
+            h0 = (h0 ^ 0x01) &* 1099511628211
+            h1 = (h1 ^ 0x01) &* 6700417
+            let byte: UInt64 = b ? 1 : 0
+            h0 = (h0 ^ byte) &* 1099511628211
+            h1 = (h1 ^ byte) &* 6700417
+        case .int(let i):
+            h0 = (h0 ^ 0x02) &* 1099511628211
+            h1 = (h1 ^ 0x02) &* 6700417
+            var bits = UInt64(bitPattern: Int64(i))
+            for _ in 0..<8 {
+                h0 = (h0 ^ (bits & 0xFF)) &* 1099511628211
+                h1 = (h1 ^ (bits & 0xFF)) &* 6700417
+                bits >>= 8
+            }
+        case .double(let d):
+            h0 = (h0 ^ 0x03) &* 1099511628211
+            h1 = (h1 ^ 0x03) &* 6700417
+            var bits = d.bitPattern
+            for _ in 0..<8 {
+                h0 = (h0 ^ UInt64(bits & 0xFF)) &* 1099511628211
+                h1 = (h1 ^ UInt64(bits & 0xFF)) &* 6700417
+                bits >>= 8
+            }
+        case .string(let s):
+            h0 = (h0 ^ 0x04) &* 1099511628211
+            h1 = (h1 ^ 0x04) &* 6700417
+            for byte in s.utf8 {
+                h0 = (h0 ^ UInt64(byte)) &* 1099511628211
+                h1 = (h1 ^ UInt64(byte)) &* 6700417
+            }
+        case .array(let arr):
+            h0 = (h0 ^ 0x05) &* 1099511628211
+            h1 = (h1 ^ 0x05) &* 6700417
+            for element in arr {
+                hashJSONValue(element, h0: &h0, h1: &h1)
+                h0 = (h0 ^ 0xFE) &* 1099511628211 // element separator
+            }
+        case .object(let dict):
+            h0 = (h0 ^ 0x06) &* 1099511628211
+            h1 = (h1 ^ 0x06) &* 6700417
+            for key in dict.keys.sorted() {
+                for byte in key.utf8 {
+                    h0 = (h0 ^ UInt64(byte)) &* 1099511628211
+                    h1 = (h1 ^ UInt64(byte)) &* 6700417
+                }
+                h0 = (h0 ^ 0xFD) &* 1099511628211 // key-value separator
+                if let val = dict[key] {
+                    hashJSONValue(val, h0: &h0, h1: &h1)
+                }
+            }
+        }
     }
 
     func parseTimestamp(from record: LogRecord) -> Date? {

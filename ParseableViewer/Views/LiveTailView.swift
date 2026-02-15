@@ -11,6 +11,8 @@ struct LiveTailView: View {
     @State private var sortColumn: String?
     @State private var sortAscending = false
     @State private var columnWidths: [String: CGFloat] = [:]
+    @State private var cachedSorted: [LiveTailViewModel.LiveTailEntry] = []
+    @State private var liveTailSortTask: Task<Void, Never>?
 
     var body: some View {
         @Bindable var vm = viewModel
@@ -109,6 +111,7 @@ struct LiveTailView: View {
                         selectedRecord = nil
                         sortColumn = nil
                         columnWidths = [:]
+                        cachedSorted = []
                     } label: {
                         Image(systemName: "trash")
                     }
@@ -259,23 +262,38 @@ struct LiveTailView: View {
             selectedRecord = nil
             sortColumn = nil
             columnWidths = [:]
+            cachedSorted = []
         }
         .onChange(of: viewModel.visibleColumns) { _, newColumns in
             // Compute widths for any newly visible columns
-            let records = viewModel.filteredEntries.map { $0.record }
+            let records = viewModel.cachedFilteredEntries.map { $0.record }
             for col in newColumns where columnWidths[col] == nil {
                 columnWidths[col] = idealColumnWidth(for: col, records: records)
             }
         }
+        .onAppear {
+            rebuildSortedEntries()
+        }
     }
 
-    private var sortedEntries: [LiveTailViewModel.LiveTailEntry] {
-        let entries = viewModel.filteredEntries
-        guard let sortColumn else { return entries }
-        return entries.sorted { a, b in
-            let aVal = a.record[sortColumn] ?? .null
-            let bVal = b.record[sortColumn] ?? .null
-            return sortAscending ? aVal < bVal : bVal < aVal
+    private func rebuildSortedEntries() {
+        let entries = viewModel.cachedFilteredEntries
+        guard let col = sortColumn else {
+            cachedSorted = entries
+            return
+        }
+        liveTailSortTask?.cancel()
+        let asc = sortAscending
+        liveTailSortTask = Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            let sorted = entries.sorted { a, b in
+                let aVal = a.record[col] ?? .null
+                let bVal = b.record[col] ?? .null
+                return asc ? aVal < bVal : bVal < aVal
+            }
+            guard !Task.isCancelled else { return }
+            cachedSorted = sorted
         }
     }
 
@@ -284,25 +302,24 @@ struct LiveTailView: View {
             ScrollView([.horizontal, .vertical]) {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                     Section {
-                        let sorted = sortedEntries
-                        ForEach(sorted.indices, id: \.self) { index in
+                        ForEach(cachedSorted.indices, id: \.self) { index in
                             LogRowView(
-                                record: sorted[index].record,
+                                record: cachedSorted[index].record,
                                 columns: viewModel.visibleColumns,
                                 columnWidths: columnWidths,
-                                isSelected: selectedRecord == sorted[index].record,
+                                isSelected: selectedRecord == cachedSorted[index].record,
                                 isAlternate: index % 2 == 1,
                                 wrapText: wrapText,
                                 onCellFilter: { column, value, exclude in
                                     viewModel.addColumnFilter(column: column, value: value, exclude: exclude)
                                 }
                             )
-                            .id(sorted[index].id)
+                            .id(cachedSorted[index].id)
                             .onTapGesture {
-                                if selectedRecord == sorted[index].record {
+                                if selectedRecord == cachedSorted[index].record {
                                     selectedRecord = nil
                                 } else {
-                                    selectedRecord = sorted[index].record
+                                    selectedRecord = cachedSorted[index].record
                                 }
                             }
                         }
@@ -312,7 +329,7 @@ struct LiveTailView: View {
                             sortColumn: $sortColumn,
                             sortAscending: $sortAscending,
                             columnWidths: $columnWidths,
-                            records: viewModel.filteredEntries.map { $0.record },
+                            records: viewModel.cachedFilteredEntries.map { $0.record },
                             onMoveColumn: { from, to in
                                 viewModel.moveColumn(from, to: to)
                             },
@@ -323,13 +340,20 @@ struct LiveTailView: View {
                     }
                 }
             }
+            .onChange(of: viewModel.filteredEntriesGeneration) { _, _ in
+                rebuildSortedEntries()
+            }
+            .onChange(of: sortColumn) { _, _ in
+                rebuildSortedEntries()
+            }
+            .onChange(of: sortAscending) { _, _ in
+                rebuildSortedEntries()
+            }
             .onChange(of: viewModel.entries.count) { _, _ in
                 guard autoScroll, sortColumn == nil else { return }
-                // When a filter is active, scroll to the last filtered entry;
-                // when no filter, scroll to the absolute last entry.
                 let hasFilters = !viewModel.filterText.isEmpty || !viewModel.columnFilters.isEmpty
                 let target = hasFilters
-                    ? viewModel.filteredEntries.last
+                    ? viewModel.cachedFilteredEntries.last
                     : viewModel.entries.last
                 if let target {
                     proxy.scrollTo(target.id, anchor: .bottom)
