@@ -149,7 +149,7 @@ struct LiveTailView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    if !viewModel.filterText.isEmpty && viewModel.displayedCount != viewModel.entryCount {
+                    if (!viewModel.filterText.isEmpty || !viewModel.columnFilters.isEmpty) && viewModel.displayedCount != viewModel.entryCount {
                         Text("(of \(viewModel.entryCount) total)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -160,6 +160,55 @@ struct LiveTailView: View {
                 .background(.bar)
 
                 Divider()
+
+                // Active column filters
+                if !viewModel.columnFilters.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 4) {
+                                ForEach(viewModel.columnFilters) { filter in
+                                    HStack(spacing: 2) {
+                                        Text(filter.displayLabel)
+                                            .font(.caption)
+                                            .lineLimit(1)
+                                        Button {
+                                            viewModel.removeColumnFilter(filter)
+                                        } label: {
+                                            Image(systemName: "xmark")
+                                                .font(.system(size: 8, weight: .bold))
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(filter.exclude
+                                                  ? Color.red.opacity(0.15)
+                                                  : Color.accentColor.opacity(0.15))
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer()
+
+                        Button("Clear All") {
+                            viewModel.clearColumnFilters()
+                        }
+                        .font(.caption)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+
+                    Divider()
+                }
 
                 // Column table or empty state
                 if viewModel.visibleColumns.isEmpty {
@@ -233,7 +282,10 @@ struct LiveTailView: View {
                                 columns: viewModel.visibleColumns,
                                 columnWidths: columnWidths,
                                 isSelected: selectedRecord == sorted[index].record,
-                                isAlternate: index % 2 == 1
+                                isAlternate: index % 2 == 1,
+                                onCellFilter: { column, value, exclude in
+                                    viewModel.addColumnFilter(column: column, value: value, exclude: exclude)
+                                }
                             )
                             .id(sorted[index].id)
                             .onTapGesture {
@@ -258,9 +310,10 @@ struct LiveTailView: View {
                 guard autoScroll, sortColumn == nil else { return }
                 // When a filter is active, scroll to the last filtered entry;
                 // when no filter, scroll to the absolute last entry.
-                let target = viewModel.filterText.isEmpty
-                    ? viewModel.entries.last
-                    : viewModel.filteredEntries.last
+                let hasFilters = !viewModel.filterText.isEmpty || !viewModel.columnFilters.isEmpty
+                let target = hasFilters
+                    ? viewModel.filteredEntries.last
+                    : viewModel.entries.last
                 if let target {
                     proxy.scrollTo(target.id, anchor: .bottom)
                 }
