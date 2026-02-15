@@ -129,11 +129,16 @@ final class AppState {
                 self.streamLoadError = ParseableError.userFriendlyMessage(for: error)
             }
         } catch {
-            self.errorMessage = ParseableError.userFriendlyMessage(for: error)
-            self.showError = true
-            self.isConnected = false
-            self.client = nil
-            self.activeConnection = nil
+            // If the task was cancelled (e.g. user clicked Disconnect during
+            // auto-reconnect), skip the error alert — disconnect() already
+            // cleaned up the state.
+            if !Task.isCancelled {
+                self.errorMessage = ParseableError.userFriendlyMessage(for: error)
+                self.showError = true
+                self.isConnected = false
+                self.client = nil
+                self.activeConnection = nil
+            }
         }
 
         isConnecting = false

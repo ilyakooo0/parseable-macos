@@ -145,14 +145,17 @@ final class QueryViewModel {
 
         let limit = queryLimit
         let sql: String
+        let usedAutoLimit: Bool
         if sqlQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             guard let stream else {
                 errorMessage = "Select a stream or enter a SQL query"
                 return
             }
             sql = "SELECT * FROM \(Self.escapeSQLIdentifier(stream)) ORDER BY p_timestamp DESC LIMIT \(limit)"
+            usedAutoLimit = true
         } else {
             sql = sqlQuery
+            usedAutoLimit = false
         }
 
         // Cancel any in-flight query
@@ -173,8 +176,9 @@ final class QueryViewModel {
                 queryDuration = CFAbsoluteTimeGetCurrent() - startTime
                 resultCount = results.count
 
-                // Detect if results were likely truncated
-                resultsTruncated = results.count == limit
+                // Detect if results were likely truncated (only meaningful
+                // for auto-generated queries where we control the LIMIT)
+                resultsTruncated = usedAutoLimit && results.count == limit
 
                 // Extract columns in a single pass, with priority fields first
                 columns = extractColumns(from: results)
