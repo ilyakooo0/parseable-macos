@@ -391,4 +391,74 @@ final class LiveTailViewModelTests: XCTestCase {
         vm.moveColumn(from: IndexSet(integer: 0), to: 3)
         XCTAssertEqual(vm.columnOrder, ["b", "c", "a"])
     }
+
+    // MARK: - Column Filters
+
+    func testAddColumnFilter() {
+        let vm = LiveTailViewModel()
+        vm.addColumnFilter(column: "level", value: .string("error"), exclude: false)
+        XCTAssertEqual(vm.columnFilters.count, 1)
+        XCTAssertEqual(vm.columnFilters[0].column, "level")
+        XCTAssertEqual(vm.columnFilters[0].value, .string("error"))
+        XCTAssertFalse(vm.columnFilters[0].exclude)
+    }
+
+    func testAddColumnFilterExclude() {
+        let vm = LiveTailViewModel()
+        vm.addColumnFilter(column: "level", value: .string("debug"), exclude: true)
+        XCTAssertEqual(vm.columnFilters.count, 1)
+        XCTAssertTrue(vm.columnFilters[0].exclude)
+    }
+
+    func testAddDuplicateFilterReplacesExisting() {
+        let vm = LiveTailViewModel()
+        vm.addColumnFilter(column: "level", value: .string("error"), exclude: false)
+        vm.addColumnFilter(column: "level", value: .string("error"), exclude: false)
+        XCTAssertEqual(vm.columnFilters.count, 1)
+    }
+
+    func testAddFilterDifferentValueIsAdditive() {
+        let vm = LiveTailViewModel()
+        vm.addColumnFilter(column: "level", value: .string("error"), exclude: false)
+        vm.addColumnFilter(column: "level", value: .string("warn"), exclude: false)
+        XCTAssertEqual(vm.columnFilters.count, 2)
+    }
+
+    func testRemoveColumnFilter() {
+        let vm = LiveTailViewModel()
+        vm.addColumnFilter(column: "level", value: .string("error"), exclude: false)
+        let filter = vm.columnFilters[0]
+        vm.removeColumnFilter(filter)
+        XCTAssertTrue(vm.columnFilters.isEmpty)
+    }
+
+    func testClearColumnFilters() {
+        let vm = LiveTailViewModel()
+        vm.addColumnFilter(column: "level", value: .string("error"), exclude: false)
+        vm.addColumnFilter(column: "status", value: .int(500), exclude: true)
+        vm.clearColumnFilters()
+        XCTAssertTrue(vm.columnFilters.isEmpty)
+    }
+
+    func testClearResetsColumnFilters() {
+        let vm = LiveTailViewModel()
+        vm.addColumnFilter(column: "level", value: .string("error"), exclude: false)
+        vm.clear()
+        XCTAssertTrue(vm.columnFilters.isEmpty)
+    }
+
+    func testColumnFilterDisplayLabelInclude() {
+        let filter = LiveTailViewModel.ColumnFilter(column: "level", value: .string("error"), exclude: false)
+        XCTAssertEqual(filter.displayLabel, "level = error")
+    }
+
+    func testColumnFilterDisplayLabelExclude() {
+        let filter = LiveTailViewModel.ColumnFilter(column: "level", value: .string("debug"), exclude: true)
+        XCTAssertEqual(filter.displayLabel, "level \u{2260} debug")
+    }
+
+    func testColumnFilterDisplayLabelNull() {
+        let filter = LiveTailViewModel.ColumnFilter(column: "field", value: nil, exclude: false)
+        XCTAssertEqual(filter.displayLabel, "field = null")
+    }
 }

@@ -8,6 +8,7 @@ final class LiveTailViewModel {
     var isRunning = false
     var isPaused = false
     var filterText = ""
+    var columnFilters: [ColumnFilter] = []
     var pollInterval: TimeInterval = 2.0
     var maxEntries = 5000
     var errorMessage: String?
@@ -59,12 +60,59 @@ final class LiveTailViewModel {
         let summary: String
     }
 
-    var filteredEntries: [LiveTailEntry] {
-        guard !filterText.isEmpty else { return entries }
-        return entries.filter { entry in
-            entry.summary.localizedCaseInsensitiveContains(filterText) ||
-            entry.record.values.contains { $0.displayString.localizedCaseInsensitiveContains(filterText) }
+    struct ColumnFilter: Identifiable, Equatable, Sendable {
+        let id = UUID()
+        let column: String
+        let value: JSONValue?
+        let exclude: Bool
+
+        var displayLabel: String {
+            let op = exclude ? "≠" : "="
+            let val = value?.displayString ?? "null"
+            return "\(column) \(op) \(val)"
         }
+    }
+
+    var filteredEntries: [LiveTailEntry] {
+        var result = entries
+
+        // Apply column filters
+        for filter in columnFilters {
+            result = result.filter { entry in
+                let recordValue = entry.record[filter.column]
+                let matches: Bool
+                if filter.value == nil || filter.value == .null {
+                    matches = recordValue == nil || recordValue == .null
+                } else {
+                    matches = recordValue == filter.value
+                }
+                return filter.exclude ? !matches : matches
+            }
+        }
+
+        // Apply text filter
+        if !filterText.isEmpty {
+            result = result.filter { entry in
+                entry.summary.localizedCaseInsensitiveContains(filterText) ||
+                entry.record.values.contains { $0.displayString.localizedCaseInsensitiveContains(filterText) }
+            }
+        }
+
+        return result
+    }
+
+    func addColumnFilter(column: String, value: JSONValue?, exclude: Bool) {
+        // Remove any existing filter on the same column with the same value
+        columnFilters.removeAll { $0.column == column && $0.value == value && $0.exclude == exclude }
+        columnFilters.append(ColumnFilter(column: column, value: value, exclude: exclude))
+    }
+
+    func removeColumnFilter(_ filter: ColumnFilter) {
+        columnFilters.removeAll { $0.id == filter.id }
+    }
+
+    func clearColumnFilters() {
+        columnFilters.removeAll()
     }
 
     var entryCount: Int { entries.count }
@@ -91,6 +139,7 @@ final class LiveTailViewModel {
         columns = []
         columnOrder = []
         hiddenColumns = []
+        columnFilters = []
         currentStream = stream
 
         timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
@@ -119,6 +168,7 @@ final class LiveTailViewModel {
         columns = []
         columnOrder = []
         hiddenColumns = []
+        columnFilters = []
     }
 
     // MARK: - Column Management
