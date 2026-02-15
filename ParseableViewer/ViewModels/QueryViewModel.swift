@@ -147,7 +147,7 @@ final class QueryViewModel {
                 errorMessage = "Select a stream or enter a SQL query"
                 return
             }
-            sql = "SELECT * FROM \"\(stream)\" ORDER BY p_timestamp DESC LIMIT \(limit)"
+            sql = "SELECT * FROM \(Self.escapeSQLIdentifier(stream)) ORDER BY p_timestamp DESC LIMIT \(limit)"
         } else {
             sql = sqlQuery
         }
@@ -234,8 +234,13 @@ final class QueryViewModel {
 
     func setDefaultQuery(stream: String) {
         if sqlQuery.isEmpty {
-            sqlQuery = "SELECT * FROM \"\(stream)\" ORDER BY p_timestamp DESC LIMIT \(queryLimit)"
+            sqlQuery = "SELECT * FROM \(Self.escapeSQLIdentifier(stream)) ORDER BY p_timestamp DESC LIMIT \(queryLimit)"
         }
+    }
+
+    /// Escapes a SQL identifier by doubling internal double-quotes, then wrapping in double-quotes.
+    static func escapeSQLIdentifier(_ identifier: String) -> String {
+        "\"\(identifier.replacingOccurrences(of: "\"", with: "\"\""))\""
     }
 
     // MARK: - Query History

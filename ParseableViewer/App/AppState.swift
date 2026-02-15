@@ -18,6 +18,7 @@ final class AppState {
     var streams: [LogStream] = []
     var selectedStream: String?
     var isLoadingStreams = false
+    var streamLoadError: String?
 
     // MARK: - Navigation
     var showConnectionSheet = false
@@ -116,7 +117,7 @@ final class AppState {
             self.serverAbout = try? await about
             self.streams = (try? await streamList) ?? []
         } catch {
-            self.errorMessage = error.localizedDescription
+            self.errorMessage = ParseableError.userFriendlyMessage(for: error)
             self.showError = true
             self.isConnected = false
             self.client = nil
@@ -141,10 +142,13 @@ final class AppState {
     func refreshStreams() async {
         guard let client else { return }
         isLoadingStreams = true
+        streamLoadError = nil
         do {
             streams = try await client.listStreams()
         } catch {
-            self.errorMessage = "Failed to load streams: \(error.localizedDescription)"
+            let message = ParseableError.userFriendlyMessage(for: error)
+            streamLoadError = message
+            self.errorMessage = "Failed to load streams: \(message)"
             self.showError = true
         }
         isLoadingStreams = false
@@ -189,6 +193,12 @@ final class AppState {
         try await client.deleteStream(name: name)
         if selectedStream == name {
             selectedStream = nil
+        }
+        // Remove saved queries that referenced the deleted stream
+        let orphaned = savedQueries.filter { $0.stream == name }
+        if !orphaned.isEmpty {
+            savedQueries.removeAll { $0.stream == name }
+            SavedQueryStore.save(savedQueries)
         }
         await refreshStreams()
     }

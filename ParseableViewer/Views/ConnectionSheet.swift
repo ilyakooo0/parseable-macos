@@ -153,44 +153,11 @@ struct ConnectionSheet: View {
                 }
             } catch {
                 await MainActor.run {
-                    testResult = .failure(Self.userFriendlyError(error))
+                    testResult = .failure(ParseableError.userFriendlyMessage(for: error))
                     isTesting = false
                 }
             }
         }
-    }
-
-    private static func userFriendlyError(_ error: Error) -> String {
-        if let parseableError = error as? ParseableError {
-            switch parseableError {
-            case .unauthorized:
-                return "Authentication failed. Check your username and password."
-            case .invalidURL:
-                return "The server URL is invalid. Check the format (e.g. https://host:port)."
-            case .serverError(let code, _):
-                return "Server returned error \(code). Check that the URL points to a Parseable instance."
-            default:
-                return parseableError.localizedDescription
-            }
-        }
-        let nsError = error as NSError
-        if nsError.domain == NSURLErrorDomain {
-            switch nsError.code {
-            case NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost:
-                return "No internet connection. Check your network and try again."
-            case NSURLErrorCannotFindHost:
-                return "Cannot find server. Check the URL and your network connection."
-            case NSURLErrorCannotConnectToHost:
-                return "Cannot connect to server. Check the URL and that the server is running."
-            case NSURLErrorTimedOut:
-                return "Connection timed out. The server may be unreachable."
-            case NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateUntrusted:
-                return "SSL/TLS error. The server certificate may be invalid or untrusted."
-            default:
-                return "Network error: \(error.localizedDescription)"
-            }
-        }
-        return error.localizedDescription
     }
 
     private func saveAndConnect() {

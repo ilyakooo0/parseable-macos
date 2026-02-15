@@ -109,6 +109,16 @@ struct ServerInfoView: View {
                     }
                     .padding(8)
                 }
+
+                // App version
+                GroupBox("Parseable Viewer") {
+                    HStack {
+                        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–"
+                        let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "–"
+                        InfoRow(label: "App Version", value: "\(appVersion) (\(buildNumber))")
+                    }
+                    .padding(8)
+                }
             }
             .padding()
         }

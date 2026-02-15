@@ -104,7 +104,7 @@ final class LiveTailViewModel {
         let queryStart = lastTimestamp
             ?? Calendar.current.date(byAdding: .second, value: -30, to: now)
             ?? now.addingTimeInterval(-30)
-        let sql = "SELECT * FROM \"\(stream)\" ORDER BY p_timestamp DESC LIMIT 200"
+        let sql = "SELECT * FROM \(QueryViewModel.escapeSQLIdentifier(stream)) ORDER BY p_timestamp DESC LIMIT 200"
 
         do {
             let records = try await client.query(sql: sql, startTime: queryStart, endTime: now)

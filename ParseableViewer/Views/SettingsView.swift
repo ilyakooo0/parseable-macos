@@ -19,6 +19,7 @@ struct SettingsView: View {
                         Text("Last 6 hours").tag("last6Hours")
                         Text("Last 24 hours").tag("last24Hours")
                         Text("Last 7 days").tag("last7Days")
+                        Text("Last 30 days").tag("last30Days")
                     }
 
                     Stepper("Max Results: \(maxQueryResults)",

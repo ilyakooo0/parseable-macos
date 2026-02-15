@@ -18,6 +18,41 @@ enum ParseableError: LocalizedError {
         case .unauthorized: return "Authentication failed. Check your credentials."
         }
     }
+
+    /// Maps any error into a user-friendly message, handling ParseableError cases
+    /// and common NSURLError codes.
+    static func userFriendlyMessage(for error: Error) -> String {
+        if let parseableError = error as? ParseableError {
+            switch parseableError {
+            case .unauthorized:
+                return "Authentication failed. Check your username and password."
+            case .invalidURL:
+                return "The server URL is invalid. Check the format (e.g. https://host:port)."
+            case .serverError(let code, _):
+                return "Server returned error \(code). Check that the URL points to a Parseable instance."
+            default:
+                return parseableError.localizedDescription
+            }
+        }
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            switch nsError.code {
+            case NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost:
+                return "No internet connection. Check your network and try again."
+            case NSURLErrorCannotFindHost:
+                return "Cannot find server. Check the URL and your network connection."
+            case NSURLErrorCannotConnectToHost:
+                return "Cannot connect to server. Check the URL and that the server is running."
+            case NSURLErrorTimedOut:
+                return "Connection timed out. The server may be unreachable."
+            case NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateUntrusted:
+                return "SSL/TLS error. The server certificate may be invalid or untrusted."
+            default:
+                return "Network error: \(error.localizedDescription)"
+            }
+        }
+        return error.localizedDescription
+    }
 }
 
 final class ParseableClient: Sendable {
@@ -42,6 +77,10 @@ final class ParseableClient: Sendable {
             throw ParseableError.invalidURL
         }
         self.init(url: url, username: connection.username, password: connection.password)
+    }
+
+    deinit {
+        session.invalidateAndCancel()
     }
 
     private var authHeader: String {
@@ -114,7 +153,10 @@ final class ParseableClient: Sendable {
     }
 
     private static func encodePathComponent(_ name: String) -> String {
-        name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? name
+        // Use a restrictive character set for path segments: exclude /?#[]@!$&'()*+,;=
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/?#[]@!$&'()*+,;=")
+        return name.addingPercentEncoding(withAllowedCharacters: allowed) ?? name
     }
 
     func createStream(name: String) async throws {

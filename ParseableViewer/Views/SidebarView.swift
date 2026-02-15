@@ -56,6 +56,27 @@ struct SidebarView: View {
                 .listStyle(.sidebar)
                 .searchable(text: $appState.streamSearchText, prompt: "Filter streams")
 
+                // Stream load error with retry
+                if let streamError = appState.streamLoadError {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                        Text(streamError)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                        Spacer()
+                        Button("Retry") {
+                            Task { await appState.refreshStreams() }
+                        }
+                        .controlSize(.small)
+                        .buttonStyle(.bordered)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.08))
+                }
+
                 // Bottom toolbar
                 HStack {
                     Button {
@@ -212,6 +233,10 @@ struct SavedQueryRow: View {
     @Environment(AppState.self) private var appState
     let query: SavedQuery
 
+    private var streamExists: Bool {
+        appState.streams.contains { $0.name == query.stream }
+    }
+
     var body: some View {
         Button {
             appState.selectedStream = query.stream
@@ -220,13 +245,20 @@ struct SavedQueryRow: View {
         } label: {
             HStack {
                 Image(systemName: "bookmark")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(streamExists ? .orange : .secondary)
                 VStack(alignment: .leading) {
                     Text(query.name)
                         .lineLimit(1)
-                    Text(query.stream)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Text(query.stream)
+                        if !streamExists {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                                .help("Stream \"\(query.stream)\" no longer exists")
+                        }
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 }
             }
         }

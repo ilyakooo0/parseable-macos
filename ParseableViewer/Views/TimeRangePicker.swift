@@ -80,6 +80,7 @@ struct TimeRangePicker: View {
                         showCustomPicker = false
                     }
                     .buttonStyle(.borderedProminent)
+                    .disabled(customEnd < customStart)
                 }
             }
             .padding()
