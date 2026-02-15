@@ -20,7 +20,16 @@ struct QueryView: View {
                     TimeRangePicker(
                         option: $vm.timeRangeOption,
                         customStart: $vm.customStartDate,
-                        customEnd: $vm.customEndDate
+                        customEnd: $vm.customEndDate,
+                        onCommit: {
+                            guard appState.selectedStream != nil else { return }
+                            Task {
+                                await viewModel.executeQuery(
+                                    client: appState.client,
+                                    stream: appState.selectedStream
+                                )
+                            }
+                        }
                     )
 
                     Spacer()
@@ -245,6 +254,15 @@ struct QueryView: View {
                         )
                     }
                 }
+            }
+        }
+        .onChange(of: viewModel.timeRangeOption) { _, newValue in
+            guard newValue != .custom, appState.selectedStream != nil else { return }
+            Task {
+                await viewModel.executeQuery(
+                    client: appState.client,
+                    stream: appState.selectedStream
+                )
             }
         }
         .onAppear {

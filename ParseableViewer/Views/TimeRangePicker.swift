@@ -4,6 +4,7 @@ struct TimeRangePicker: View {
     @Binding var option: QueryViewModel.TimeRangeOption
     @Binding var customStart: Date
     @Binding var customEnd: Date
+    var onCommit: (() -> Void)?
     @State private var showCustomPicker = false
 
     var body: some View {
@@ -78,6 +79,7 @@ struct TimeRangePicker: View {
 
                     Button("Done") {
                         showCustomPicker = false
+                        onCommit?()
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(customEnd < customStart)
