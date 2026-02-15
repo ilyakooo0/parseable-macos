@@ -71,9 +71,8 @@ struct QueryView: View {
                     .disabled(viewModel.sqlQuery.isEmpty)
                     .accessibilityLabel("Save query")
 
-                    Menu {
-                        Button("Export as JSON") { exportJSON() }
-                        Button("Export as CSV") { exportCSV() }
+                    Button {
+                        exportResults()
                     } label: {
                         Image(systemName: "square.and.arrow.up")
                     }
@@ -337,36 +336,26 @@ struct QueryView: View {
         }
     }
 
-    private func exportJSON() {
-        let results = viewModel.results
-        saveToFile(type: "json") {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            do {
-                let data = try encoder.encode(results)
-                return String(data: data, encoding: .utf8) ?? "[]"
-            } catch {
-                return nil
-            }
-        }
-    }
-
-    private func exportCSV() {
-        let results = viewModel.results
-        let columns = viewModel.visibleColumns
-        saveToFile(type: "csv") {
-            QueryViewModel.buildCSV(records: results, columns: columns)
-        }
-    }
-
-    private func saveToFile(type: String, generate: @Sendable @escaping () -> String?) {
+    private func exportResults() {
         let panel = NSSavePanel()
-        panel.allowedContentTypes = type == "json" ? [.json] : [.commaSeparatedText]
-        panel.nameFieldStringValue = "export.\(type)"
+        panel.allowedContentTypes = [.json, .commaSeparatedText]
+        panel.nameFieldStringValue = "export.json"
         panel.begin { result in
             guard result == .OK, let url = panel.url else { return }
+            let isCSV = url.pathExtension.lowercased() == "csv"
+            let results = viewModel.results
+            let columns = viewModel.visibleColumns
             Task.detached(priority: .userInitiated) {
-                guard let content = generate() else {
+                let content: String?
+                if isCSV {
+                    content = QueryViewModel.buildCSV(records: results, columns: columns)
+                } else {
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                    content = (try? encoder.encode(results))
+                        .flatMap { String(data: $0, encoding: .utf8) }
+                }
+                guard let content else {
                     await MainActor.run {
                         exportError = "Failed to encode data for export"
                         showExportError = true
