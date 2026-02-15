@@ -17,6 +17,8 @@ final class LiveTailViewModel {
     private var timer: Timer?
     private var lastTimestamp: Date?
     private var seenFingerprints: Set<String> = []
+    private var consecutiveErrors = 0
+    private static let maxConsecutiveErrors = 5
 
     deinit {
         timer?.invalidate()
@@ -75,6 +77,7 @@ final class LiveTailViewModel {
         entries = []
         seenFingerprints = []
         droppedCount = 0
+        consecutiveErrors = 0
         lastPollTime = nil
         lastTimestamp = Date()
 
@@ -148,8 +151,15 @@ final class LiveTailViewModel {
             lastTimestamp = now
             lastPollTime = now
             errorMessage = nil
+            consecutiveErrors = 0
         } catch {
-            errorMessage = ParseableError.userFriendlyMessage(for: error)
+            consecutiveErrors += 1
+            if consecutiveErrors >= Self.maxConsecutiveErrors {
+                errorMessage = "\(ParseableError.userFriendlyMessage(for: error)) — stopped after \(consecutiveErrors) consecutive failures"
+                stop()
+            } else {
+                errorMessage = ParseableError.userFriendlyMessage(for: error)
+            }
         }
     }
 
@@ -164,7 +174,9 @@ final class LiveTailViewModel {
             }
             h0 = (h0 ^ 0) &* 1099511628211 // separator
             if let val = record[key] {
-                for byte in val.displayString.utf8 {
+                // Use exportString so nested objects/arrays contribute their
+                // actual content to the hash, not just their field count.
+                for byte in val.exportString.utf8 {
                     h0 = (h0 ^ UInt64(byte)) &* 1099511628211
                     h1 = (h1 ^ UInt64(byte)) &* 6700417
                 }
