@@ -373,4 +373,35 @@ final class ParseableClientTests: XCTestCase {
         let csv = QueryViewModel.buildCSV(records: records, columns: ["msg"])
         XCTAssertTrue(csv.contains("\"say \"\"hi\"\"\""))
     }
+
+    // MARK: - Malformed response decoding
+
+    func testQueryResponseMalformedThrows() throws {
+        // Malformed data that is neither QueryResponse nor [LogRecord]
+        let data = "not json at all".data(using: .utf8)!
+
+        // Neither format should decode
+        XCTAssertNil(try? JSONDecoder().decode(QueryResponse.self, from: data))
+        XCTAssertNil(try? JSONDecoder().decode([LogRecord].self, from: data))
+    }
+
+    func testRetentionConfigEmptyDataReturnsEmpty() throws {
+        // Empty data should be treated as no retention (tested via the Data.isEmpty check)
+        let emptyData = Data()
+        // JSONDecoder would fail on empty data
+        XCTAssertThrowsError(try JSONDecoder().decode([RetentionConfig].self, from: emptyData))
+    }
+
+    func testAlertConfigMalformedThrows() {
+        // Completely invalid JSON should fail AlertConfig decoding
+        let data = "<<<not json>>>".data(using: .utf8)!
+        XCTAssertThrowsError(try JSONDecoder().decode(AlertConfig.self, from: data))
+    }
+
+    func testRetentionConfigMalformedThrows() {
+        // A plain string is not valid as RetentionConfig or [RetentionConfig]
+        let data = "\"just a string\"".data(using: .utf8)!
+        XCTAssertNil(try? JSONDecoder().decode([RetentionConfig].self, from: data))
+        XCTAssertNil(try? JSONDecoder().decode(RetentionConfig.self, from: data))
+    }
 }

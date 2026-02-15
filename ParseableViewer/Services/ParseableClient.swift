@@ -222,7 +222,11 @@ final class ParseableClient: Sendable {
         if let wrapped = try? JSONDecoder().decode(QueryResponse.self, from: responseData) {
             return wrapped.records
         }
-        return (try? JSONDecoder().decode([LogRecord].self, from: responseData)) ?? []
+        do {
+            return try JSONDecoder().decode([LogRecord].self, from: responseData)
+        } catch {
+            throw ParseableError.decodingError("Unexpected query response format")
+        }
     }
 
     // MARK: - Alerts
@@ -231,7 +235,7 @@ final class ParseableClient: Sendable {
         // Try new API first; only fall back to legacy per-stream endpoint on 404
         do {
             let data = try await performRequest(method: "GET", path: "/api/v1/alerts")
-            return (try? JSONDecoder().decode(AlertConfig.self, from: data)) ?? AlertConfig(alerts: [], version: nil)
+            return try JSONDecoder().decode(AlertConfig.self, from: data)
         } catch let error as ParseableError {
             if case .serverError(let code, _) = error, code == 404 {
                 // New endpoint not available, try legacy below
@@ -249,14 +253,17 @@ final class ParseableClient: Sendable {
     func getRetention(stream: String) async throws -> [RetentionConfig] {
         let encoded = try Self.encodePathComponent(stream)
         let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/retention")
+        if data.isEmpty { return [] }
         // Handle both array and single object response
         if let array = try? JSONDecoder().decode([RetentionConfig].self, from: data) {
             return array
         }
-        if let single = try? JSONDecoder().decode(RetentionConfig.self, from: data) {
+        do {
+            let single = try JSONDecoder().decode(RetentionConfig.self, from: data)
             return [single]
+        } catch {
+            throw ParseableError.decodingError("Unexpected retention response format")
         }
-        return []
     }
 
     // MARK: - Users
