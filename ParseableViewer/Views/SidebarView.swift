@@ -10,6 +10,9 @@ struct SidebarView: View {
 
     /// Validates a stream name, returning an error message or nil if valid.
     static func validateStreamName(_ name: String) -> String? {
+        if name.trimmingCharacters(in: .whitespaces).isEmpty {
+            return "Stream name cannot be empty."
+        }
         if name.count > 255 {
             return "Stream name must be 255 characters or fewer."
         }

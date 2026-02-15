@@ -204,6 +204,11 @@ struct QueryView: View {
                 viewModel.setDefaultQuery(stream: stream)
             }
         }
+        .onDisappear {
+            if viewModel.isLoading {
+                viewModel.cancelQuery()
+            }
+        }
         .onChange(of: appState.pendingSavedQuerySQL) { _, newSQL in
             if let sql = newSQL {
                 viewModel.sqlQuery = sql

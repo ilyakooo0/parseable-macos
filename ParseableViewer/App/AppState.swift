@@ -13,6 +13,7 @@ final class AppState {
     var serverAbout: ServerAbout?
     private(set) var isNetworkAvailable = true
     private let networkMonitor = NWPathMonitor()
+    private let networkMonitorQueue = DispatchQueue(label: "com.parseableviewer.network-monitor")
 
     // MARK: - Stream State
     var streams: [LogStream] = []
@@ -77,7 +78,7 @@ final class AppState {
                 self?.isNetworkAvailable = path.status == .satisfied
             }
         }
-        networkMonitor.start(queue: DispatchQueue(label: "NetworkMonitor"))
+        networkMonitor.start(queue: networkMonitorQueue)
 
         if let activeID = ConnectionStore.loadActiveConnectionID(),
            let connection = connections.first(where: { $0.id == activeID }) {

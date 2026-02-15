@@ -404,4 +404,54 @@ final class ParseableClientTests: XCTestCase {
         XCTAssertNil(try? JSONDecoder().decode([RetentionConfig].self, from: data))
         XCTAssertNil(try? JSONDecoder().decode(RetentionConfig.self, from: data))
     }
+
+    // MARK: - Stream name validation (empty)
+
+    func testStreamNameEmpty() {
+        let error = SidebarView.validateStreamName("")
+        XCTAssertNotNil(error)
+        XCTAssertTrue(error?.lowercased().contains("empty") ?? false)
+    }
+
+    func testStreamNameWhitespaceOnly() {
+        let error = SidebarView.validateStreamName("   ")
+        XCTAssertNotNil(error)
+        XCTAssertTrue(error?.lowercased().contains("empty") ?? false)
+    }
+
+    // MARK: - URL scheme validation
+
+    func testValidateURLAcceptsHTTPS() {
+        // ConnectionSheet.validateURL is private, so we test via ServerConnection.baseURL
+        let conn = ServerConnection(name: "t", url: "https://example.com", username: "u", password: "p")
+        XCTAssertNotNil(conn.baseURL)
+        XCTAssertEqual(conn.baseURL?.scheme, "https")
+    }
+
+    func testValidateURLAcceptsHTTP() {
+        let conn = ServerConnection(name: "t", url: "http://example.com", username: "u", password: "p")
+        XCTAssertNotNil(conn.baseURL)
+        XCTAssertEqual(conn.baseURL?.scheme, "http")
+    }
+
+    // MARK: - CSV export edge cases
+
+    func testBuildCSVEscapesNewlines() {
+        let records: [LogRecord] = [
+            ["msg": .string("line1\nline2")]
+        ]
+        let csv = QueryViewModel.buildCSV(records: records, columns: ["msg"])
+        // Newlines in values should be wrapped in quotes
+        XCTAssertTrue(csv.contains("\"line1\nline2\""))
+    }
+
+    func testBuildCSVMissingColumn() {
+        let records: [LogRecord] = [
+            ["level": .string("info")]
+        ]
+        let csv = QueryViewModel.buildCSV(records: records, columns: ["level", "msg"])
+        // Missing column value should produce empty field
+        let lines = csv.components(separatedBy: "\n")
+        XCTAssertTrue(lines[1].hasSuffix(",") || lines[1].components(separatedBy: ",").count == 2)
+    }
 }

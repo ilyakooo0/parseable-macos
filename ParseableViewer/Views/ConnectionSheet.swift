@@ -198,6 +198,9 @@ struct ConnectionSheet: View {
               url.host != nil else {
             return "Invalid URL format"
         }
+        guard let scheme = url.scheme, ["http", "https"].contains(scheme.lowercased()) else {
+            return "URL must use HTTP or HTTPS"
+        }
         return nil
     }
 }
