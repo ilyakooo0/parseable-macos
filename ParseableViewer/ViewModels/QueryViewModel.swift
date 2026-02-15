@@ -287,14 +287,16 @@ final class QueryViewModel {
                 let extracted = extractColumns(from: results)
                 applyColumnConfig(extractedColumns: extracted, stream: stream)
 
-                // Auto-hide columns that have no values in any row
+                // Auto-hide columns that have no values in any row.
+                // Clear first so stale state from a previous query doesn't
+                // interfere with the visible-count check.
+                autoHiddenColumns = []
                 let empty = emptyColumns(in: results, columns: columnOrder)
-                let alreadyHidden = hiddenColumns.union(autoHiddenColumns)
-                let totalVisible = columnOrder.count - alreadyHidden.count
-                let newAutoHide = empty.subtracting(alreadyHidden)
+                let candidates = empty.subtracting(hiddenColumns)
+                let visibleCount = columnOrder.count - hiddenColumns.count
                 // Ensure at least one column remains visible
-                if newAutoHide.count < totalVisible {
-                    autoHiddenColumns = empty.subtracting(hiddenColumns)
+                if candidates.count < visibleCount {
+                    autoHiddenColumns = candidates
                 }
 
                 // Record in history
