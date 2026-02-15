@@ -53,6 +53,7 @@ struct LogTableView: View {
     let records: [LogRecord]
     let columns: [String]
     @Binding var selectedRecord: LogRecord?
+    var isLoading: Bool = false
     var onCellFilter: ((_ column: String, _ value: JSONValue?, _ exclude: Bool) -> Void)?
     var onMoveColumn: ((String, String) -> Void)?
     @State private var sortColumn: String?
@@ -63,7 +64,15 @@ struct LogTableView: View {
     @State private var columnWidths: [String: CGFloat] = [:]
 
     var body: some View {
-        if records.isEmpty {
+        if records.isEmpty && isLoading {
+            VStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.large)
+                Text("Loading results...")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if records.isEmpty {
             VStack(spacing: 8) {
                 Image(systemName: "doc.text.magnifyingglass")
                     .font(.system(size: 32))
@@ -109,6 +118,13 @@ struct LogTableView: View {
                 if let selected = selectedRecord {
                     LogDetailView(record: selected)
                         .frame(minWidth: 300, idealWidth: 350)
+                }
+            }
+            .opacity(isLoading ? 0.5 : 1.0)
+            .overlay {
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.large)
                 }
             }
             .onChange(of: records) { _, _ in
