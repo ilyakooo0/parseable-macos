@@ -52,8 +52,9 @@ struct LogDetailView: View {
     }
 
     private func copyToClipboard() {
-        let dict = record.mapValues { $0 }
-        if let data = try? JSONEncoder().encode(dict),
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        if let data = try? encoder.encode(record),
            let json = String(data: data, encoding: .utf8) {
             NSPasteboard.general.clearContents()
             let success = NSPasteboard.general.setString(json, forType: .string)

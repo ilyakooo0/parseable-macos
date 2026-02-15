@@ -142,10 +142,11 @@ struct ServerInfoView: View {
         } catch {
             isHealthy = false
         }
-        about = try? await aboutResult
-
-        if about == nil {
-            errorMessage = "Failed to load server information"
+        do {
+            about = try await aboutResult
+        } catch {
+            about = nil
+            errorMessage = ParseableError.userFriendlyMessage(for: error)
         }
 
         isLoading = false
