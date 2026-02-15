@@ -37,7 +37,7 @@ jobs:
         run: |
           xcodebuild \
             -project ParseableViewer.xcodeproj \
-            -scheme ParseableViewerTests \
+            -scheme ParseableViewer \
             -configuration Debug \
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="-" \
