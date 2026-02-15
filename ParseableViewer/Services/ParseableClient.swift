@@ -28,8 +28,12 @@ enum ParseableError: LocalizedError {
                 return "Authentication failed. Check your username and password."
             case .invalidURL:
                 return "The server URL is invalid. Check the format (e.g. https://host:port)."
-            case .serverError(let code, _):
-                return "Server returned error \(code). Check that the URL points to a Parseable instance."
+            case .serverError(let code, let message):
+                let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    return "Server returned error \(code)."
+                }
+                return "Server error (\(code)): \(trimmed)"
             default:
                 return parseableError.localizedDescription
             }

@@ -242,7 +242,22 @@ final class ParseableClientTests: XCTestCase {
     func testUserFriendlyMessageForServerError() {
         let msg = ParseableError.userFriendlyMessage(for: ParseableError.serverError(500, "fail"))
         XCTAssertTrue(msg.contains("500"))
-        XCTAssertTrue(msg.contains("Parseable"))
+        XCTAssertTrue(msg.contains("fail"))
+    }
+
+    func testUserFriendlyMessageForServerErrorIncludesDetail() {
+        let msg = ParseableError.userFriendlyMessage(for: ParseableError.serverError(400, "Stream not found"))
+        XCTAssertEqual(msg, "Server error (400): Stream not found")
+    }
+
+    func testUserFriendlyMessageForServerErrorEmptyBody() {
+        let msg = ParseableError.userFriendlyMessage(for: ParseableError.serverError(502, ""))
+        XCTAssertEqual(msg, "Server returned error 502.")
+    }
+
+    func testUserFriendlyMessageForServerErrorTrimsWhitespace() {
+        let msg = ParseableError.userFriendlyMessage(for: ParseableError.serverError(400, "  bad query  \n"))
+        XCTAssertEqual(msg, "Server error (400): bad query")
     }
 
     func testUserFriendlyMessageForInvalidURL() {

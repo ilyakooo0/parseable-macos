@@ -110,9 +110,14 @@ final class LiveTailViewModel {
 
     private func poll(client: ParseableClient, stream: String) async {
         let now = Date()
-        let queryStart = lastTimestamp
-            ?? Calendar.current.date(byAdding: .second, value: -30, to: now)
-            ?? now.addingTimeInterval(-30)
+        // The Parseable server truncates query time-ranges to minute
+        // boundaries, so a narrow window (< 60 s) can collapse to a
+        // zero-width range and return HTTP 400.  Always look back at
+        // least 90 seconds; fingerprint deduplication prevents showing
+        // duplicate entries.
+        let idealStart = lastTimestamp ?? now.addingTimeInterval(-30)
+        let safeStart = now.addingTimeInterval(-90)
+        let queryStart = min(idealStart, safeStart)
         let sql = "SELECT * FROM \(QueryViewModel.escapeSQLIdentifier(stream)) ORDER BY p_timestamp DESC LIMIT 200"
 
         do {
