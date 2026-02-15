@@ -65,11 +65,11 @@ struct QueryView: View {
                     Button {
                         showSaveQuerySheet = true
                     } label: {
-                        Image(systemName: "bookmark")
+                        Text("Save view")
                     }
                     .help("Save query")
                     .disabled(viewModel.sqlQuery.isEmpty)
-                    .accessibilityLabel("Save query")
+                    .accessibilityLabel("Save view")
 
                     Button {
                         exportResults()
