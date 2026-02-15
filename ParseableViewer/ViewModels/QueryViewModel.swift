@@ -136,17 +136,20 @@ final class QueryViewModel {
             }
         }
         saveColumnConfig()
+        updateSQLColumns()
     }
 
     func showAllColumns() {
         hiddenColumns.removeAll()
         autoHiddenColumns.removeAll()
         saveColumnConfig()
+        updateSQLColumns()
     }
 
     func moveColumn(from source: IndexSet, to destination: Int) {
         columnOrder.move(fromOffsets: source, toOffset: destination)
         saveColumnConfig()
+        updateSQLColumns()
     }
 
     func moveColumn(_ column: String, to targetColumn: String) {
@@ -156,6 +159,7 @@ final class QueryViewModel {
         let item = columnOrder.remove(at: fromIndex)
         columnOrder.insert(item, at: toIndex)
         saveColumnConfig()
+        updateSQLColumns()
     }
 
     func resetColumnConfig() {
@@ -163,6 +167,30 @@ final class QueryViewModel {
         hiddenColumns.removeAll()
         autoHiddenColumns.removeAll()
         saveColumnConfig()
+        updateSQLColumns()
+    }
+
+    /// Rewrites the SELECT clause of `sqlQuery` to reflect the current `visibleColumns`.
+    func updateSQLColumns() {
+        let pattern = #"(?i)^(\s*SELECT\s+(?:DISTINCT\s+)?)(.+?)(\s+FROM\b)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else { return }
+        let range = NSRange(sqlQuery.startIndex..<sqlQuery.endIndex, in: sqlQuery)
+        guard let match = regex.firstMatch(in: sqlQuery, range: range) else { return }
+
+        let visible = visibleColumns
+        guard !visible.isEmpty else { return }
+
+        let newColumnList: String
+        if visible == columns {
+            newColumnList = "*"
+        } else {
+            newColumnList = visible.map { Self.escapeSQLIdentifier($0) }.joined(separator: ", ")
+        }
+
+        var result = sqlQuery
+        let group2Range = Range(match.range(at: 2), in: sqlQuery)!
+        result.replaceSubrange(group2Range, with: newColumnList)
+        sqlQuery = result
     }
 
     // MARK: - Column Configuration Persistence
