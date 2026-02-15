@@ -295,7 +295,7 @@ struct ColumnResizeHandle: View {
                 }
             }
             .gesture(
-                DragGesture(minimumDistance: 1)
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
                     .onChanged { gesture in
                         if initialWidth == nil {
                             initialWidth = columnWidth

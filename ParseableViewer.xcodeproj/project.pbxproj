@@ -341,7 +341,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "COMMIT_TIMESTAMP=$(TZ=UTC git log -1 --format='%cd' --date=format-local:'%Y%m%d.%H%M%S' 2>/dev/null)\nif [ -n \"$COMMIT_TIMESTAMP\" ]; then\n  /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion ${COMMIT_TIMESTAMP}\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n  /usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString ${COMMIT_TIMESTAMP}\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nfi\n";
+			shellScript = "COMMIT_TIMESTAMP=$(TZ=UTC git log -1 --format='%cd' --date=format-local:'%Y.%m.%d.%H%M' 2>/dev/null)\nif [ -n \"$COMMIT_TIMESTAMP\" ]; then\n  /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion ${COMMIT_TIMESTAMP}\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n  /usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString ${COMMIT_TIMESTAMP}\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
