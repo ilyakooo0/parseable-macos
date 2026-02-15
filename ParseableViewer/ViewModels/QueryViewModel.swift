@@ -187,7 +187,7 @@ final class QueryViewModel {
                 results = []
                 columns = []
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = ParseableError.userFriendlyMessage(for: error)
                 results = []
                 columns = []
             }

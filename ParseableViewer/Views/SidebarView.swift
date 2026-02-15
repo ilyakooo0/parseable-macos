@@ -163,7 +163,7 @@ struct SidebarView: View {
                         try await appState.createStream(name: name)
                         newStreamName = ""
                     } catch {
-                        appState.showErrorMessage(error.localizedDescription)
+                        appState.showErrorMessage(ParseableError.userFriendlyMessage(for: error))
                     }
                 }
             }
@@ -178,7 +178,7 @@ struct SidebarView: View {
                         do {
                             try await appState.deleteStream(name: name)
                         } catch {
-                            appState.showErrorMessage(error.localizedDescription)
+                            appState.showErrorMessage(ParseableError.userFriendlyMessage(for: error))
                         }
                     }
                 }
