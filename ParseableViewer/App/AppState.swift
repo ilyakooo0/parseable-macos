@@ -61,9 +61,9 @@ final class AppState {
 
     var filteredStreams: [LogStream] {
         if streamSearchText.isEmpty {
-            return streams
+            return streams.sorted()
         }
-        return streams.filter { $0.name.localizedCaseInsensitiveContains(streamSearchText) }
+        return streams.filter { $0.name.localizedCaseInsensitiveContains(streamSearchText) }.sorted()
     }
 
     deinit {
