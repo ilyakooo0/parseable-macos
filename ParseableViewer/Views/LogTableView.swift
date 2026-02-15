@@ -87,8 +87,13 @@ struct LogTableView: View {
                                     onCellFilter: onCellFilter
                                 )
                                 .onTapGesture {
-                                    selectedIndex = index
-                                    selectedRecord = cachedSorted[index]
+                                    if selectedIndex == index {
+                                        selectedIndex = nil
+                                        selectedRecord = nil
+                                    } else {
+                                        selectedIndex = index
+                                        selectedRecord = cachedSorted[index]
+                                    }
                                 }
                             }
                         } header: {
