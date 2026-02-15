@@ -116,12 +116,18 @@ final class AppState {
 
             ConnectionStore.saveActiveConnectionID(connection.id)
 
-            // Load server info and streams
+            // Load server info and streams (best-effort; don't fail the connection)
             async let about = newClient.getAbout()
             async let streamList = newClient.listStreams()
 
             self.serverAbout = try? await about
-            self.streams = (try? await streamList) ?? []
+            do {
+                self.streams = try await streamList
+                self.streamLoadError = nil
+            } catch {
+                self.streams = []
+                self.streamLoadError = ParseableError.userFriendlyMessage(for: error)
+            }
         } catch {
             self.errorMessage = ParseableError.userFriendlyMessage(for: error)
             self.showError = true

@@ -15,6 +15,8 @@ final class ConnectionStore {
         for connection in connections {
             if !connection.password.isEmpty {
                 KeychainService.savePassword(connection.password, for: connection.id)
+            } else {
+                KeychainService.deletePassword(for: connection.id)
             }
         }
         if let data = try? JSONEncoder().encode(connections) {
