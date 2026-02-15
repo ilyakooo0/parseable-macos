@@ -64,6 +64,10 @@ final class AppState {
         return streams.filter { $0.name.localizedCaseInsensitiveContains(streamSearchText) }
     }
 
+    deinit {
+        networkMonitor.cancel()
+    }
+
     init() {
         connections = ConnectionStore.loadConnections()
         savedQueries = SavedQueryStore.load()

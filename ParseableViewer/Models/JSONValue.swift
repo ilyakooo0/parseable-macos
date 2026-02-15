@@ -82,7 +82,11 @@ enum JSONValue: Codable, Hashable, Sendable {
         return nil
     }
 
-    func prettyPrinted(indent: Int = 0) -> String {
+    func prettyPrinted(indent: Int = 0, maxDepth: Int = 50) -> String {
+        if indent >= maxDepth {
+            return displayString
+        }
+
         let pad = String(repeating: "  ", count: indent)
         let innerPad = String(repeating: "  ", count: indent + 1)
 
@@ -95,15 +99,15 @@ enum JSONValue: Codable, Hashable, Sendable {
         case .array(let items):
             if items.isEmpty { return "[]" }
             if items.allSatisfy({ $0.isScalar }) && items.count <= 5 {
-                return "[\(items.map { $0.prettyPrinted() }.joined(separator: ", "))]"
+                return "[\(items.map { $0.prettyPrinted(maxDepth: maxDepth) }.joined(separator: ", "))]"
             }
-            let lines = items.map { "\(innerPad)\($0.prettyPrinted(indent: indent + 1))" }
+            let lines = items.map { "\(innerPad)\($0.prettyPrinted(indent: indent + 1, maxDepth: maxDepth))" }
             return "[\n\(lines.joined(separator: ",\n"))\n\(pad)]"
         case .object(let dict):
             if dict.isEmpty { return "{}" }
             let sortedKeys = dict.keys.sorted()
             let lines = sortedKeys.map { key in
-                "\(innerPad)\"\(key)\": \(dict[key]!.prettyPrinted(indent: indent + 1))"
+                "\(innerPad)\"\(key)\": \(dict[key]!.prettyPrinted(indent: indent + 1, maxDepth: maxDepth))"
             }
             return "{\n\(lines.joined(separator: ",\n"))\n\(pad)}"
         }

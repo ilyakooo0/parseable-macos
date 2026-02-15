@@ -18,6 +18,9 @@ final class QueryViewModel {
     }
     var resultsTruncated = false
 
+    // Query task for cancellation
+    private var queryTask: Task<Void, Never>?
+
     // Time range
     var timeRangeOption: TimeRangeOption = .last1Hour
     var customStartDate = Calendar.current.date(byAdding: .hour, value: -1, to: Date()) ?? Date()
@@ -152,32 +155,55 @@ final class QueryViewModel {
             sql = sqlQuery
         }
 
+        // Cancel any in-flight query
+        queryTask?.cancel()
+
         isLoading = true
         errorMessage = nil
         resultsTruncated = false
         let startTime = CFAbsoluteTimeGetCurrent()
 
-        do {
-            results = try await client.query(sql: sql, startTime: startDate, endTime: endDate)
-            queryDuration = CFAbsoluteTimeGetCurrent() - startTime
-            resultCount = results.count
+        let task = Task {
+            do {
+                try Task.checkCancellation()
+                let queryResults = try await client.query(sql: sql, startTime: startDate, endTime: endDate)
+                try Task.checkCancellation()
 
-            // Detect if results were likely truncated
-            resultsTruncated = results.count == limit
+                results = queryResults
+                queryDuration = CFAbsoluteTimeGetCurrent() - startTime
+                resultCount = results.count
 
-            // Extract columns in a single pass, with priority fields first
-            columns = extractColumns(from: results)
+                // Detect if results were likely truncated
+                resultsTruncated = results.count == limit
 
-            // Record in history
-            let entry = QueryHistoryEntry(sql: sql, resultCount: resultCount, duration: queryDuration ?? 0)
-            addToHistory(entry)
-        } catch {
-            errorMessage = error.localizedDescription
-            results = []
-            columns = []
+                // Extract columns in a single pass, with priority fields first
+                columns = extractColumns(from: results)
+
+                // Record in history
+                let entry = QueryHistoryEntry(sql: sql, resultCount: resultCount, duration: queryDuration ?? 0)
+                addToHistory(entry)
+            } catch is CancellationError {
+                errorMessage = "Query cancelled"
+                results = []
+                columns = []
+            } catch {
+                errorMessage = error.localizedDescription
+                results = []
+                columns = []
+            }
+
+            isLoading = false
         }
+        queryTask = task
+        await task.value
+    }
 
+    @MainActor
+    func cancelQuery() {
+        queryTask?.cancel()
+        queryTask = nil
         isLoading = false
+        errorMessage = "Query cancelled"
     }
 
     /// Single-pass column extraction with priority ordering.
@@ -210,11 +236,16 @@ final class QueryViewModel {
     }
 
     func exportAsCSV() -> String {
-        guard !results.isEmpty, !columns.isEmpty else { return "" }
+        Self.buildCSV(records: results, columns: columns)
+    }
+
+    /// Builds a CSV string from records and columns. Safe to call from any thread.
+    static func buildCSV(records: [LogRecord], columns: [String]) -> String {
+        guard !records.isEmpty, !columns.isEmpty else { return "" }
 
         var csv = columns.map { escapeCSV($0) }.joined(separator: ",") + "\n"
 
-        for record in results {
+        for record in records {
             let row = columns.map { column in
                 let value = record[column]?.displayString ?? ""
                 return escapeCSV(value)
@@ -225,7 +256,7 @@ final class QueryViewModel {
         return csv
     }
 
-    private func escapeCSV(_ value: String) -> String {
+    private static func escapeCSV(_ value: String) -> String {
         if value.contains(",") || value.contains("\"") || value.contains("\n") {
             return "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
         }

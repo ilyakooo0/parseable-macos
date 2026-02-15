@@ -6,6 +6,23 @@ struct SidebarView: View {
     @State private var newStreamName = ""
     @State private var showDeleteConfirm = false
     @State private var streamToDelete: String?
+    @State private var deleteStreamDetail: String?
+
+    /// Validates a stream name, returning an error message or nil if valid.
+    static func validateStreamName(_ name: String) -> String? {
+        if name.count > 255 {
+            return "Stream name must be 255 characters or fewer."
+        }
+        // Allow alphanumeric, hyphens, underscores, and dots
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+        if !name.unicodeScalars.allSatisfy({ allowed.contains($0) }) {
+            return "Stream name can only contain letters, numbers, hyphens, underscores, and dots."
+        }
+        if name.hasPrefix(".") || name.hasPrefix("-") {
+            return "Stream name cannot start with a dot or hyphen."
+        }
+        return nil
+    }
 
     var body: some View {
         @Bindable var appState = appState
@@ -39,7 +56,23 @@ struct SidebarView: View {
                                     Divider()
                                     Button("Delete...", role: .destructive) {
                                         streamToDelete = stream.name
-                                        showDeleteConfirm = true
+                                        deleteStreamDetail = nil
+                                        Task {
+                                            if let client = appState.client,
+                                               let stats = try? await client.getStreamStats(stream: stream.name) {
+                                                var parts: [String] = []
+                                                if let count = stats.ingestion?.lifetime_count {
+                                                    parts.append("\(count) total records ingested")
+                                                }
+                                                if let size = stats.storage?.lifetime_size ?? stats.storage?.size {
+                                                    parts.append("\(size) storage used")
+                                                }
+                                                if !parts.isEmpty {
+                                                    deleteStreamDetail = parts.joined(separator: ", ")
+                                                }
+                                            }
+                                            showDeleteConfirm = true
+                                        }
                                     }
                                 }
                         }
@@ -120,6 +153,10 @@ struct SidebarView: View {
             Button("Create") {
                 let name = newStreamName.trimmingCharacters(in: .whitespaces)
                 guard !name.isEmpty else { return }
+                if let error = Self.validateStreamName(name) {
+                    appState.showErrorMessage(error)
+                    return
+                }
                 Task {
                     do {
                         try await appState.createStream(name: name)
@@ -147,7 +184,11 @@ struct SidebarView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Are you sure you want to delete \"\(streamToDelete ?? "")\"? This will remove all data and cannot be undone.")
+            if let detail = deleteStreamDetail {
+                Text("Are you sure you want to delete \"\(streamToDelete ?? "")\"? This stream has \(detail). All data will be removed and this cannot be undone.")
+            } else {
+                Text("Are you sure you want to delete \"\(streamToDelete ?? "")\"? This will remove all data and cannot be undone.")
+            }
         }
     }
 }

@@ -71,27 +71,37 @@ struct QueryView: View {
                     .accessibilityLabel("Export results")
                     .help("Export results")
 
-                    Button {
-                        Task {
-                            await viewModel.executeQuery(
-                                client: appState.client,
-                                stream: appState.selectedStream
-                            )
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            if viewModel.isLoading {
+                    if viewModel.isLoading {
+                        Button {
+                            viewModel.cancelQuery()
+                        } label: {
+                            HStack(spacing: 4) {
                                 ProgressView()
                                     .controlSize(.small)
-                            } else {
-                                Image(systemName: "play.fill")
+                                Text("Cancel")
                             }
-                            Text("Run")
                         }
+                        .keyboardShortcut(.escape, modifiers: [])
+                        .buttonStyle(.bordered)
+                        .tint(.red)
+                        .accessibilityLabel("Cancel running query")
+                    } else {
+                        Button {
+                            Task {
+                                await viewModel.executeQuery(
+                                    client: appState.client,
+                                    stream: appState.selectedStream
+                                )
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "play.fill")
+                                Text("Run")
+                            }
+                        }
+                        .keyboardShortcut(.return, modifiers: .command)
+                        .buttonStyle(.borderedProminent)
                     }
-                    .keyboardShortcut(.return, modifiers: .command)
-                    .disabled(viewModel.isLoading)
-                    .buttonStyle(.borderedProminent)
                 }
                 .padding(8)
 
@@ -233,26 +243,41 @@ struct QueryView: View {
     }
 
     private func exportJSON() {
-        let json = viewModel.exportAsJSON()
-        saveToFile(content: json, type: "json")
+        let results = viewModel.results
+        saveToFile(type: "json") {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            if let data = try? encoder.encode(results),
+               let string = String(data: data, encoding: .utf8) {
+                return string
+            }
+            return "[]"
+        }
     }
 
     private func exportCSV() {
-        let csv = viewModel.exportAsCSV()
-        saveToFile(content: csv, type: "csv")
+        let results = viewModel.results
+        let columns = viewModel.columns
+        saveToFile(type: "csv") {
+            QueryViewModel.buildCSV(records: results, columns: columns)
+        }
     }
 
-    private func saveToFile(content: String, type: String) {
+    private func saveToFile(type: String, generate: @Sendable @escaping () -> String) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = type == "json" ? [.json] : [.commaSeparatedText]
         panel.nameFieldStringValue = "export.\(type)"
         panel.begin { result in
-            if result == .OK, let url = panel.url {
+            guard result == .OK, let url = panel.url else { return }
+            Task.detached(priority: .userInitiated) {
+                let content = generate()
                 do {
                     try content.write(to: url, atomically: true, encoding: .utf8)
                 } catch {
-                    exportError = "Export failed: \(error.localizedDescription)"
-                    showExportError = true
+                    await MainActor.run {
+                        exportError = "Export failed: \(error.localizedDescription)"
+                        showExportError = true
+                    }
                 }
             }
         }

@@ -114,8 +114,23 @@ struct FormattedRecordView: View {
 
 struct JSONValueView: View {
     let value: JSONValue
+    var depth: Int = 0
+    private static let maxDepth = 10
 
     var body: some View {
+        if depth >= Self.maxDepth {
+            Text(value.displayString)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .italic()
+                .help("Nesting too deep to display inline")
+        } else {
+            content
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch value {
         case .null:
             Text("null")
@@ -145,7 +160,7 @@ struct JSONValueView: View {
                         Text("[\(idx)]")
                             .font(.system(.caption2, design: .monospaced))
                             .foregroundStyle(.secondary)
-                        JSONValueView(value: item)
+                        JSONValueView(value: item, depth: depth + 1)
                     }
                 }
             }
@@ -157,7 +172,7 @@ struct JSONValueView: View {
                             .font(.system(.caption2, design: .monospaced))
                             .foregroundStyle(.secondary)
                         if let val = dict[key] {
-                            JSONValueView(value: val)
+                            JSONValueView(value: val, depth: depth + 1)
                         }
                     }
                 }

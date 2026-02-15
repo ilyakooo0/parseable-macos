@@ -213,4 +213,164 @@ final class ParseableClientTests: XCTestCase {
         )
         XCTAssertThrowsError(try ParseableClient(connection: connection))
     }
+
+    // MARK: - ParseableError
+
+    func testServerErrorDescription() {
+        let error = ParseableError.serverError(500, "Internal Server Error")
+        XCTAssertTrue(error.errorDescription?.contains("500") ?? false)
+    }
+
+    func testUnauthorizedDescription() {
+        let error = ParseableError.unauthorized
+        XCTAssertTrue(error.errorDescription?.contains("Authentication") ?? false)
+    }
+
+    func testNotConnectedDescription() {
+        let error = ParseableError.notConnected
+        XCTAssertTrue(error.errorDescription?.contains("Not connected") ?? false)
+    }
+
+    // MARK: - User-friendly error messages
+
+    func testUserFriendlyMessageForUnauthorized() {
+        let msg = ParseableError.userFriendlyMessage(for: ParseableError.unauthorized)
+        XCTAssertTrue(msg.contains("username"))
+        XCTAssertTrue(msg.contains("password"))
+    }
+
+    func testUserFriendlyMessageForServerError() {
+        let msg = ParseableError.userFriendlyMessage(for: ParseableError.serverError(500, "fail"))
+        XCTAssertTrue(msg.contains("500"))
+        XCTAssertTrue(msg.contains("Parseable"))
+    }
+
+    func testUserFriendlyMessageForInvalidURL() {
+        let msg = ParseableError.userFriendlyMessage(for: ParseableError.invalidURL)
+        XCTAssertTrue(msg.lowercased().contains("url"))
+    }
+
+    func testUserFriendlyMessageForNetworkTimeout() {
+        let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut, userInfo: nil)
+        let msg = ParseableError.userFriendlyMessage(for: error)
+        XCTAssertTrue(msg.lowercased().contains("timed out"))
+    }
+
+    func testUserFriendlyMessageForNoInternet() {
+        let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet, userInfo: nil)
+        let msg = ParseableError.userFriendlyMessage(for: error)
+        XCTAssertTrue(msg.lowercased().contains("internet") || msg.lowercased().contains("network"))
+    }
+
+    func testUserFriendlyMessageForCannotFindHost() {
+        let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotFindHost, userInfo: nil)
+        let msg = ParseableError.userFriendlyMessage(for: error)
+        XCTAssertTrue(msg.lowercased().contains("server") || msg.lowercased().contains("find"))
+    }
+
+    func testUserFriendlyMessageForCannotConnect() {
+        let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotConnectToHost, userInfo: nil)
+        let msg = ParseableError.userFriendlyMessage(for: error)
+        XCTAssertTrue(msg.lowercased().contains("connect"))
+    }
+
+    func testUserFriendlyMessageForSSLError() {
+        let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorSecureConnectionFailed, userInfo: nil)
+        let msg = ParseableError.userFriendlyMessage(for: error)
+        XCTAssertTrue(msg.lowercased().contains("ssl") || msg.lowercased().contains("tls"))
+    }
+
+    func testUserFriendlyMessageForGenericError() {
+        let error = NSError(domain: "custom", code: 42, userInfo: [NSLocalizedDescriptionKey: "Something broke"])
+        let msg = ParseableError.userFriendlyMessage(for: error)
+        XCTAssertEqual(msg, "Something broke")
+    }
+
+    // MARK: - Stream name validation
+
+    func testValidStreamName() {
+        XCTAssertNil(SidebarView.validateStreamName("my-stream_v2.0"))
+    }
+
+    func testStreamNameWithSpaces() {
+        let error = SidebarView.validateStreamName("my stream")
+        XCTAssertNotNil(error)
+        XCTAssertTrue(error?.contains("letters") ?? false)
+    }
+
+    func testStreamNameTooLong() {
+        let name = String(repeating: "a", count: 256)
+        let error = SidebarView.validateStreamName(name)
+        XCTAssertNotNil(error)
+        XCTAssertTrue(error?.contains("255") ?? false)
+    }
+
+    func testStreamNameStartsWithDot() {
+        let error = SidebarView.validateStreamName(".hidden")
+        XCTAssertNotNil(error)
+        XCTAssertTrue(error?.contains("start") ?? false)
+    }
+
+    func testStreamNameStartsWithHyphen() {
+        let error = SidebarView.validateStreamName("-bad")
+        XCTAssertNotNil(error)
+        XCTAssertTrue(error?.contains("start") ?? false)
+    }
+
+    func testStreamNameWithSpecialChars() {
+        XCTAssertNotNil(SidebarView.validateStreamName("stream@1"))
+        XCTAssertNotNil(SidebarView.validateStreamName("stream/path"))
+        XCTAssertNotNil(SidebarView.validateStreamName("stream name"))
+    }
+
+    func testStreamNameMaxLength() {
+        let name = String(repeating: "a", count: 255)
+        XCTAssertNil(SidebarView.validateStreamName(name))
+    }
+
+    // MARK: - SQL identifier escaping
+
+    func testEscapeSQLIdentifierSimple() {
+        XCTAssertEqual(QueryViewModel.escapeSQLIdentifier("logs"), "\"logs\"")
+    }
+
+    func testEscapeSQLIdentifierWithQuotes() {
+        XCTAssertEqual(QueryViewModel.escapeSQLIdentifier("my\"stream"), "\"my\"\"stream\"")
+    }
+
+    func testEscapeSQLIdentifierWithSpaces() {
+        XCTAssertEqual(QueryViewModel.escapeSQLIdentifier("my stream"), "\"my stream\"")
+    }
+
+    // MARK: - CSV export
+
+    func testBuildCSVEmpty() {
+        XCTAssertEqual(QueryViewModel.buildCSV(records: [], columns: []), "")
+    }
+
+    func testBuildCSVWithData() {
+        let records: [LogRecord] = [
+            ["level": .string("info"), "msg": .string("hello")]
+        ]
+        let csv = QueryViewModel.buildCSV(records: records, columns: ["level", "msg"])
+        XCTAssertTrue(csv.hasPrefix("level,msg\n"))
+        XCTAssertTrue(csv.contains("info"))
+        XCTAssertTrue(csv.contains("hello"))
+    }
+
+    func testBuildCSVEscapesCommas() {
+        let records: [LogRecord] = [
+            ["msg": .string("hello, world")]
+        ]
+        let csv = QueryViewModel.buildCSV(records: records, columns: ["msg"])
+        XCTAssertTrue(csv.contains("\"hello, world\""))
+    }
+
+    func testBuildCSVEscapesQuotes() {
+        let records: [LogRecord] = [
+            ["msg": .string("say \"hi\"")]
+        ]
+        let csv = QueryViewModel.buildCSV(records: records, columns: ["msg"])
+        XCTAssertTrue(csv.contains("\"say \"\"hi\"\"\""))
+    }
 }
