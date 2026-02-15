@@ -278,4 +278,117 @@ final class LiveTailViewModelTests: XCTestCase {
         XCTAssertTrue(summary.contains("[debug]"))
         XCTAssertTrue(summary.contains("Processing request"))
     }
+
+    // MARK: - Column Management
+
+    func testInitialColumnState() {
+        let vm = LiveTailViewModel()
+        XCTAssertTrue(vm.columns.isEmpty)
+        XCTAssertTrue(vm.columnOrder.isEmpty)
+        XCTAssertTrue(vm.hiddenColumns.isEmpty)
+        XCTAssertTrue(vm.visibleColumns.isEmpty)
+    }
+
+    func testVisibleColumnsExcludesHidden() {
+        let vm = LiveTailViewModel()
+        vm.columnOrder = ["a", "b", "c"]
+        vm.hiddenColumns = ["b"]
+        XCTAssertEqual(vm.visibleColumns, ["a", "c"])
+    }
+
+    func testToggleColumnVisibilityHide() {
+        let vm = LiveTailViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+        vm.hiddenColumns = []
+
+        vm.toggleColumnVisibility("b")
+        XCTAssertTrue(vm.hiddenColumns.contains("b"))
+        XCTAssertEqual(vm.visibleColumns, ["a", "c"])
+    }
+
+    func testToggleColumnVisibilityShow() {
+        let vm = LiveTailViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+        vm.hiddenColumns = ["b"]
+
+        vm.toggleColumnVisibility("b")
+        XCTAssertFalse(vm.hiddenColumns.contains("b"))
+        XCTAssertEqual(vm.visibleColumns, ["a", "b", "c"])
+    }
+
+    func testCannotHideLastVisibleColumn() {
+        let vm = LiveTailViewModel()
+        vm.columns = ["a"]
+        vm.columnOrder = ["a"]
+        vm.hiddenColumns = []
+
+        vm.toggleColumnVisibility("a")
+        // Should not hide the last visible column
+        XCTAssertFalse(vm.hiddenColumns.contains("a"))
+        XCTAssertEqual(vm.visibleColumns, ["a"])
+    }
+
+    func testShowAllColumns() {
+        let vm = LiveTailViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+        vm.hiddenColumns = ["a", "c"]
+
+        vm.showAllColumns()
+        XCTAssertTrue(vm.hiddenColumns.isEmpty)
+        XCTAssertEqual(vm.visibleColumns, ["a", "b", "c"])
+    }
+
+    func testMoveColumnByName() {
+        let vm = LiveTailViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+
+        vm.moveColumn("c", to: "a")
+        XCTAssertEqual(vm.columnOrder, ["c", "a", "b"])
+    }
+
+    func testMoveColumnSamePositionIsNoOp() {
+        let vm = LiveTailViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+
+        vm.moveColumn("a", to: "a")
+        XCTAssertEqual(vm.columnOrder, ["a", "b", "c"])
+    }
+
+    func testResetColumnConfig() {
+        let vm = LiveTailViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["c", "b", "a"]
+        vm.hiddenColumns = ["b"]
+
+        vm.resetColumnConfig()
+        XCTAssertEqual(vm.columnOrder, ["a", "b", "c"])
+        XCTAssertTrue(vm.hiddenColumns.isEmpty)
+    }
+
+    func testClearResetsColumns() {
+        let vm = LiveTailViewModel()
+        vm.columns = ["a", "b"]
+        vm.columnOrder = ["a", "b"]
+        vm.hiddenColumns = ["b"]
+
+        vm.clear()
+        XCTAssertTrue(vm.columns.isEmpty)
+        XCTAssertTrue(vm.columnOrder.isEmpty)
+        XCTAssertTrue(vm.hiddenColumns.isEmpty)
+    }
+
+    func testMoveColumnByIndexSet() {
+        let vm = LiveTailViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+
+        // Move "a" (index 0) to after "c" (index 3, past-the-end insertion)
+        vm.moveColumn(from: IndexSet(integer: 0), to: 3)
+        XCTAssertEqual(vm.columnOrder, ["b", "c", "a"])
+    }
 }
