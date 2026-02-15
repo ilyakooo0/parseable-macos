@@ -3,32 +3,54 @@ import SwiftUI
 @testable import ParseableViewer
 
 final class LogTableHelperTests: XCTestCase {
-    // MARK: - columnWidth
+    // MARK: - idealColumnWidth
 
-    func testColumnWidthTimestampFields() {
-        XCTAssertEqual(columnWidth(for: "p_timestamp"), 200)
-        XCTAssertEqual(columnWidth(for: "timestamp"), 200)
-        XCTAssertEqual(columnWidth(for: "@timestamp"), 200)
-        XCTAssertEqual(columnWidth(for: "time"), 200)
+    func testIdealColumnWidthRespectsMinimum() {
+        // A very short column name with no records should still meet the minimum width (50).
+        let width = idealColumnWidth(for: "x", records: [])
+        XCTAssertGreaterThanOrEqual(width, 50)
     }
 
-    func testColumnWidthLevelFields() {
-        XCTAssertEqual(columnWidth(for: "level"), 80)
-        XCTAssertEqual(columnWidth(for: "severity"), 80)
-        XCTAssertEqual(columnWidth(for: "log_level"), 80)
+    func testIdealColumnWidthRespectsMaximum() {
+        // A record with extremely long content should be capped at 600.
+        let longString = String(repeating: "A", count: 2000)
+        let records: [LogRecord] = [["wide": .string(longString)]]
+        let width = idealColumnWidth(for: "wide", records: records)
+        XCTAssertLessThanOrEqual(width, 600)
     }
 
-    func testColumnWidthMessageFields() {
-        XCTAssertEqual(columnWidth(for: "message"), 400)
-        XCTAssertEqual(columnWidth(for: "msg"), 400)
-        XCTAssertEqual(columnWidth(for: "body"), 400)
-        XCTAssertEqual(columnWidth(for: "log"), 400)
+    func testIdealColumnWidthGrowsWithContent() {
+        let shortRecords: [LogRecord] = [["col": .string("hi")]]
+        let longRecords: [LogRecord] = [["col": .string("a much longer cell value here")]]
+        let shortWidth = idealColumnWidth(for: "col", records: shortRecords)
+        let longWidth = idealColumnWidth(for: "col", records: longRecords)
+        XCTAssertLessThan(shortWidth, longWidth)
     }
 
-    func testColumnWidthDefault() {
-        XCTAssertEqual(columnWidth(for: "custom_field"), 160)
-        XCTAssertEqual(columnWidth(for: "unknown"), 160)
-        XCTAssertEqual(columnWidth(for: ""), 160)
+    func testIdealColumnWidthConsidersHeaderName() {
+        // A long column name should produce a wider column even with no records.
+        let shortHeader = idealColumnWidth(for: "id", records: [])
+        let longHeader = idealColumnWidth(for: "a_very_long_column_name_here", records: [])
+        XCTAssertLessThan(shortHeader, longHeader)
+    }
+
+    // MARK: - computeColumnWidths
+
+    func testComputeColumnWidthsReturnsAllColumns() {
+        let columns = ["a", "b", "c"]
+        let records: [LogRecord] = [["a": .string("x"), "b": .int(1), "c": .null]]
+        let widths = computeColumnWidths(columns: columns, records: records)
+        XCTAssertEqual(Set(widths.keys), Set(columns))
+    }
+
+    func testComputeColumnWidthsEmptyRecords() {
+        let columns = ["col1", "col2"]
+        let widths = computeColumnWidths(columns: columns, records: [])
+        // Should still return widths based on header names
+        XCTAssertEqual(widths.count, 2)
+        for (_, width) in widths {
+            XCTAssertGreaterThanOrEqual(width, 50)
+        }
     }
 
     // MARK: - levelColor
