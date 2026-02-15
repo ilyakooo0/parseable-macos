@@ -262,7 +262,13 @@ final class QueryViewModel {
     }
 
     private static func escapeCSV(_ value: String) -> String {
-        if value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r") {
+        // Check at the Unicode scalar level to correctly detect \r and \n
+        // inside \r\n (CRLF) grapheme clusters, which Swift's String.contains
+        // treats as a single Character that doesn't match "\r" or "\n" alone.
+        let needsQuoting = value.unicodeScalars.contains { scalar in
+            scalar == "," || scalar == "\"" || scalar == "\n" || scalar == "\r"
+        }
+        if needsQuoting {
             return "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
         }
         return value

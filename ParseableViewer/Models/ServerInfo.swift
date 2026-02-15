@@ -65,16 +65,10 @@ struct RetentionConfig: Codable, Sendable {
     let action: String?
 
     init(from decoder: Decoder) throws {
-        // Handle both single object and array
-        if let container = try? decoder.container(keyedBy: CodingKeys.self) {
-            self.description = try? container.decode(String.self, forKey: .description)
-            self.duration = try? container.decode(String.self, forKey: .duration)
-            self.action = try? container.decode(String.self, forKey: .action)
-        } else {
-            self.description = nil
-            self.duration = nil
-            self.action = nil
-        }
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.description = try? container.decode(String.self, forKey: .description)
+        self.duration = try? container.decode(String.self, forKey: .duration)
+        self.action = try? container.decode(String.self, forKey: .action)
     }
 
     private enum CodingKeys: String, CodingKey {
