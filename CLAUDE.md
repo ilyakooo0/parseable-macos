@@ -12,15 +12,26 @@ xcodegen generate
 xcodebuild -project ParseableViewer.xcodeproj -scheme ParseableViewer -configuration Release build
 ```
 
-CI builds run on `macos-14` runners via `.github/workflows/build.yml`.
+Run tests:
+
+```bash
+xcodebuild test \
+  -project ParseableViewer.xcodeproj \
+  -scheme ParseableViewer \
+  -configuration Debug \
+  -destination 'platform=macOS'
+```
+
+CI builds on `macos-15` runners via `.github/workflows/build.yml`, producing arm64, x86_64, and universal binaries.
 
 ## Architecture
 
 - **Language**: Swift 5.9, SwiftUI, macOS 14.0+ (Sonoma)
 - **Pattern**: MVVM with `@Observable` classes and `@Environment` injection
+- **Concurrency**: Swift structured concurrency (`async/await`, `@MainActor`, strict `Sendable` conformance)
 - **Networking**: `URLSession` async/await, no external dependencies
 - **Project generation**: XcodeGen from `project.yml`
-- **Persistence**: `UserDefaults` for connections and saved queries
+- **Persistence**: `UserDefaults` for connections and saved queries; Keychain for passwords
 
 ### Source layout
 
@@ -28,19 +39,20 @@ CI builds run on `macos-14` runners via `.github/workflows/build.yml`.
 ParseableViewer/
   App/           # @main entry point + AppState (central @Observable)
   Models/        # Codable data types (JSONValue, LogStream, ServerInfo, etc.)
-  Services/      # ParseableClient (REST API), ConnectionStore (persistence)
+  Services/      # ParseableClient (REST API), ConnectionStore (persistence), KeychainService
   ViewModels/    # QueryViewModel, LiveTailViewModel
   Views/         # All SwiftUI views
   Resources/     # Asset catalog
+ParseableViewerTests/  # Unit tests for models, view models, and services
 ```
 
 ### Key types
 
-- `AppState` — singleton @Observable injected via `.environment()`. Holds connections, streams, selected stream, navigation state.
-- `ParseableClient` — stateless HTTP client for all Parseable REST API calls. Uses Basic Auth. Created per-connection.
-- `JSONValue` — recursive enum for type-safe arbitrary JSON (`null | bool | int | double | string | array | object`). Used as the core data type for log records (`LogRecord = [String: JSONValue]`).
-- `QueryViewModel` — manages SQL text, time range, query execution, result columns, filtering, and CSV/JSON export.
-- `LiveTailViewModel` — timer-based polling (2s interval) that queries recent logs, deduplicates by hash, and appends to a capped buffer.
+- `AppState` — singleton `@Observable` injected via `.environment()`. Holds connections, streams, selected stream, navigation state. Clears stream-specific state when switching servers.
+- `ParseableClient` — `Sendable` HTTP client for all Parseable REST API calls. Uses Basic Auth. Created per-connection. Uses `finishTasksAndInvalidate()` on deinit so in-flight requests complete gracefully.
+- `JSONValue` — recursive `Codable`, `Hashable`, `Comparable` enum for type-safe arbitrary JSON (`null | bool | int | double | string | array | object`). Provides `displayString` (UI), `exportString` (CSV/JSON export with full nested serialization), and type-aware comparison (numeric values sort numerically, strings use `localizedStandardCompare`).
+- `QueryViewModel` — manages SQL text, time range, query execution, result columns, filtering, CSV/JSON export, and query history. Auto-updates the default query when the user switches streams.
+- `LiveTailViewModel` — timer-based polling that queries recent logs, deduplicates by FNV-1a content fingerprint, and appends to a capped buffer. Auto-stops after 5 consecutive poll failures.
 
 ### Parseable API endpoints used
 
@@ -67,7 +79,31 @@ Live tail in Parseable uses gRPC Arrow Flight streaming. This app approximates i
 ## Conventions
 
 - No external dependencies; the app uses only Apple frameworks
+- All model types conform to `Sendable` for strict concurrency safety
 - Models use defensive `try?` decoding for optional fields to tolerate API version differences
 - Views follow the macOS pattern: `NavigationSplitView` sidebar + detail, with tab switching in the detail pane
 - All API calls are `async` and dispatched from views via `Task { }`
+- Passwords are stored in the Keychain, never in UserDefaults; `ServerConnection.password` is excluded from `Codable`
+- Stream names are SQL-escaped via `escapeSQLIdentifier` (double-quote wrapping) and URL-encoded via `encodePathComponent` for API paths
+- Views clear stale data before loading new content (e.g., switching streams clears previous schema/stats)
 - Entitlements: App Sandbox enabled with network.client for outbound connections
+
+## Common patterns
+
+### Adding a new API endpoint
+
+1. Add the method to `ParseableClient` using `performRequest(method:path:body:)` — it handles auth, status codes, and error mapping
+2. Add any new response types to the appropriate model file with defensive `try?` decoding for optional fields
+3. Call from the view layer via `Task { }` with appropriate loading/error state management
+
+### Adding a new detail tab
+
+1. Add a case to `AppState.AppTab` with a `systemImage`
+2. Add the view to `StreamDetailView`'s tab switching logic
+3. The sidebar tab bar auto-renders from `AppTab.allCases`
+
+### Error handling
+
+- Use `ParseableError.userFriendlyMessage(for:)` to convert any error (including `NSURLError` codes) into a human-readable string
+- API methods throw `ParseableError` variants; views catch and display via `errorMessage` state
+- Cancelled tasks (e.g., disconnect during auto-reconnect) are detected via `Task.isCancelled` to suppress spurious error alerts
