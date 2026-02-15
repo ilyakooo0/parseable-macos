@@ -14,7 +14,9 @@ final class LiveTailViewModel {
     var droppedCount = 0
     private(set) var lastPollTime: Date?
 
-    private var timer: Timer?
+    // nonisolated(unsafe) so deinit can invalidate the timer.
+    // Only mutated from @MainActor methods (start/stop).
+    nonisolated(unsafe) private var timer: Timer?
     private var lastTimestamp: Date?
     private var seenFingerprints: Set<String> = []
     private var consecutiveErrors = 0

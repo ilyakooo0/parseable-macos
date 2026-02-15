@@ -189,12 +189,10 @@ struct StreamDetailView: View {
         retention = []
 
         // Fetch all stream data concurrently
-        async let schemaResult = Result { try await client.getStreamSchema(stream: stream) }
-        async let statsResult = Result { try await client.getStreamStats(stream: stream) }
-        async let infoResult = Result { try await client.getStreamInfo(stream: stream) }
-        async let retentionResult = Result { try await client.getRetention(stream: stream) }
-
-        let results = await (schemaResult, statsResult, infoResult, retentionResult)
+        async let schemaFetch = client.getStreamSchema(stream: stream)
+        async let statsFetch = client.getStreamStats(stream: stream)
+        async let infoFetch = client.getStreamInfo(stream: stream)
+        async let retentionFetch = client.getRetention(stream: stream)
 
         var failures: [String] = []
         var sawNotFound = false
@@ -203,25 +201,10 @@ struct StreamDetailView: View {
             if case .serverError(let code, _) = error as? ParseableError, code == 404 { sawNotFound = true }
         }
 
-        switch results.0 {
-        case .success(let v): schema = v
-        case .failure(let e): schema = nil; failures.append("schema"); checkNotFound(e)
-        }
-
-        switch results.1 {
-        case .success(let v): stats = v
-        case .failure(let e): stats = nil; failures.append("stats"); checkNotFound(e)
-        }
-
-        switch results.2 {
-        case .success(let v): info = v
-        case .failure(let e): info = nil; failures.append("info"); checkNotFound(e)
-        }
-
-        switch results.3 {
-        case .success(let v): retention = v
-        case .failure(let e): retention = []; failures.append("retention"); checkNotFound(e)
-        }
+        do { schema = try await schemaFetch } catch { schema = nil; failures.append("schema"); checkNotFound(error) }
+        do { stats = try await statsFetch } catch { stats = nil; failures.append("stats"); checkNotFound(error) }
+        do { info = try await infoFetch } catch { info = nil; failures.append("info"); checkNotFound(error) }
+        do { retention = try await retentionFetch } catch { retention = []; failures.append("retention"); checkNotFound(error) }
 
         if sawNotFound && failures.count == 4 {
             errorMessage = "Stream \"\(stream)\" was not found. It may have been deleted."
