@@ -536,14 +536,12 @@ final class QueryViewModel {
     /// query text was replaced (i.e. the user hadn't customized it).
     @discardableResult
     func setDefaultQuery(stream: String, previousStream: String? = nil) -> Bool {
-        // Replace the query if it's empty or still matches the auto-generated
-        // default for the previous stream. If the user edited the SQL, keep it.
+        // Always replace when switching streams — the previous query (whether
+        // auto-generated or from a saved filter) belongs to the old stream.
+        // Only preserve the query when no stream change occurred (e.g. onAppear).
         let shouldReplace: Bool
-        if sqlQuery.isEmpty {
+        if sqlQuery.isEmpty || previousStream != nil {
             shouldReplace = true
-        } else if let prev = previousStream {
-            let prevPrefix = "SELECT * FROM \(Self.escapeSQLIdentifier(prev))"
-            shouldReplace = sqlQuery.hasPrefix(prevPrefix)
         } else {
             shouldReplace = false
         }
