@@ -1,17 +1,39 @@
 import SwiftUI
 
-/// Shared column width logic used by both header and row views.
-func columnWidth(for column: String) -> CGFloat {
-    switch column {
-    case "p_timestamp", "timestamp", "@timestamp", "time":
-        return 200
-    case "level", "severity", "log_level":
-        return 80
-    case "message", "msg", "body", "log":
-        return 400
-    default:
-        return 160
+/// Computes the display width needed for a text string using the given font.
+private func measureTextWidth(_ text: String, font: NSFont) -> CGFloat {
+    let attributes: [NSAttributedString.Key: Any] = [.font: font]
+    return ceil((text as NSString).size(withAttributes: attributes).width)
+}
+
+/// Font used for header text measurement.
+private let headerMeasureFont = NSFont.systemFont(ofSize: 10, weight: .semibold)
+/// Font used for cell text measurement.
+private let cellMeasureFont = NSFont.monospacedSystemFont(ofSize: 10, weight: .regular)
+
+/// Computes the ideal width for a single column by sampling record content.
+func idealColumnWidth(for column: String, records: [LogRecord]) -> CGFloat {
+    let padding: CGFloat = 28 // horizontal padding (6*2) + sort indicator + buffer
+    let minWidth: CGFloat = 50
+    let maxWidth: CGFloat = 600
+    let sampleCount = min(records.count, 200)
+
+    var widest = measureTextWidth(column, font: headerMeasureFont)
+    for i in 0..<sampleCount {
+        let text = records[i][column]?.displayString ?? ""
+        widest = max(widest, measureTextWidth(text, font: cellMeasureFont))
     }
+
+    return min(max(widest + padding, minWidth), maxWidth)
+}
+
+/// Computes ideal widths for all columns by sampling record content.
+func computeColumnWidths(columns: [String], records: [LogRecord]) -> [String: CGFloat] {
+    var widths: [String: CGFloat] = [:]
+    for column in columns {
+        widths[column] = idealColumnWidth(for: column, records: records)
+    }
+    return widths
 }
 
 /// Shared log-level color mapping.
@@ -25,6 +47,8 @@ func levelColor(for value: String) -> Color {
     }
 }
 
+// MARK: - LogTableView
+
 struct LogTableView: View {
     let records: [LogRecord]
     let columns: [String]
@@ -34,6 +58,7 @@ struct LogTableView: View {
     @State private var selectedIndex: Int?
     @State private var cachedSorted: [LogRecord] = []
     @State private var sortTask: Task<Void, Never>?
+    @State private var columnWidths: [String: CGFloat] = [:]
 
     var body: some View {
         if records.isEmpty {
@@ -54,6 +79,7 @@ struct LogTableView: View {
                                 LogRowView(
                                     record: cachedSorted[index],
                                     columns: columns,
+                                    columnWidths: columnWidths,
                                     isSelected: selectedIndex == index,
                                     isAlternate: index % 2 == 1
                                 )
@@ -66,7 +92,9 @@ struct LogTableView: View {
                             LogHeaderView(
                                 columns: columns,
                                 sortColumn: $sortColumn,
-                                sortAscending: $sortAscending
+                                sortAscending: $sortAscending,
+                                columnWidths: $columnWidths,
+                                records: records
                             )
                         }
                     }
@@ -78,10 +106,16 @@ struct LogTableView: View {
                         .frame(minWidth: 300, idealWidth: 350)
                 }
             }
-            .onChange(of: records) { _, _ in debouncedRebuildSort() }
+            .onChange(of: records) { _, _ in
+                columnWidths = computeColumnWidths(columns: columns, records: records)
+                debouncedRebuildSort()
+            }
             .onChange(of: sortColumn) { _, _ in debouncedRebuildSort() }
             .onChange(of: sortAscending) { _, _ in debouncedRebuildSort() }
-            .onAppear { rebuildSort() }
+            .onAppear {
+                columnWidths = computeColumnWidths(columns: columns, records: records)
+                rebuildSort()
+            }
         }
     }
 
@@ -113,39 +147,102 @@ struct LogTableView: View {
     }
 }
 
+// MARK: - ColumnResizeHandle
+
+struct ColumnResizeHandle: View {
+    @Binding var columnWidth: CGFloat
+    @State private var isHovering = false
+    @State private var initialWidth: CGFloat?
+
+    var body: some View {
+        Color.clear
+            .frame(width: 6)
+            .overlay(
+                Rectangle()
+                    .fill(Color.secondary.opacity(isHovering ? 0.5 : 0.2))
+                    .frame(width: 1)
+            )
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                isHovering = hovering
+                if hovering {
+                    NSCursor.resizeLeftRight.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { gesture in
+                        if initialWidth == nil {
+                            initialWidth = columnWidth
+                        }
+                        let newWidth = (initialWidth ?? columnWidth) + gesture.translation.width
+                        columnWidth = min(max(newWidth, 40), 1000)
+                    }
+                    .onEnded { _ in
+                        initialWidth = nil
+                    }
+            )
+    }
+}
+
+// MARK: - LogHeaderView
+
 struct LogHeaderView: View {
     let columns: [String]
     @Binding var sortColumn: String?
     @Binding var sortAscending: Bool
+    @Binding var columnWidths: [String: CGFloat]
+    let records: [LogRecord]
 
     var body: some View {
         HStack(spacing: 0) {
             ForEach(columns, id: \.self) { column in
-                Button {
-                    if sortColumn == column {
-                        sortAscending.toggle()
-                    } else {
-                        sortColumn = column
-                        sortAscending = true
-                    }
-                } label: {
-                    HStack(spacing: 2) {
-                        Text(column)
-                            .font(.caption.weight(.semibold))
-                            .lineLimit(1)
+                HStack(spacing: 0) {
+                    Button {
                         if sortColumn == column {
-                            Image(systemName: sortAscending ? "chevron.up" : "chevron.down")
-                                .font(.caption2)
+                            sortAscending.toggle()
+                        } else {
+                            sortColumn = column
+                            sortAscending = true
+                        }
+                    } label: {
+                        HStack(spacing: 2) {
+                            Text(column)
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                            if sortColumn == column {
+                                Image(systemName: sortAscending ? "chevron.up" : "chevron.down")
+                                    .font(.caption2)
+                            }
                         }
                     }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .accessibilityLabel(sortColumn == column
+                        ? "Sort by \(column), \(sortAscending ? "ascending" : "descending")"
+                        : "Sort by \(column)")
+
+                    Spacer(minLength: 0)
+
+                    ColumnResizeHandle(
+                        columnWidth: Binding(
+                            get: { columnWidths[column] ?? 120 },
+                            set: { columnWidths[column] = $0 }
+                        )
+                    )
                 }
-                .buttonStyle(.plain)
-                .frame(width: columnWidth(for: column), alignment: .leading)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
-                .accessibilityLabel(sortColumn == column
-                    ? "Sort by \(column), \(sortAscending ? "ascending" : "descending")"
-                    : "Sort by \(column)")
+                .frame(width: columnWidths[column] ?? 120, alignment: .leading)
+                .contextMenu {
+                    Button("Auto-fit Column") {
+                        columnWidths[column] = idealColumnWidth(for: column, records: records)
+                    }
+                    Button("Auto-fit All Columns") {
+                        columnWidths = computeColumnWidths(columns: columns, records: records)
+                    }
+                }
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
@@ -153,9 +250,12 @@ struct LogHeaderView: View {
     }
 }
 
+// MARK: - LogRowView
+
 struct LogRowView: View {
     let record: LogRecord
     let columns: [String]
+    let columnWidths: [String: CGFloat]
     let isSelected: Bool
     let isAlternate: Bool
 
@@ -166,7 +266,7 @@ struct LogRowView: View {
                 Text(value?.displayString ?? "")
                     .font(.system(.caption, design: .monospaced))
                     .lineLimit(1)
-                    .frame(width: columnWidth(for: column), alignment: .leading)
+                    .frame(width: columnWidths[column] ?? 120, alignment: .leading)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
                     .foregroundStyle(colorForValue(column: column, value: value))
