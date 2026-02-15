@@ -59,4 +59,22 @@ final class ServerConnectionTests: XCTestCase {
         let b = ServerConnection(name: "B", url: "url", username: "user", password: "pass")
         XCTAssertNotEqual(a, b)
     }
+
+    // MARK: - BaseURL host validation
+
+    func testBaseURLEmptyReturnsNil() {
+        let conn = ServerConnection(name: "test", url: "", username: "admin", password: "pass")
+        XCTAssertNil(conn.baseURL)
+    }
+
+    func testBaseURLWhitespaceOnlyReturnsNil() {
+        let conn = ServerConnection(name: "test", url: "   ", username: "admin", password: "pass")
+        XCTAssertNil(conn.baseURL)
+    }
+
+    func testBaseURLSchemeOnlyReturnsNil() {
+        // "https://" has no host, should return nil
+        let conn = ServerConnection(name: "test", url: "https://", username: "admin", password: "pass")
+        XCTAssertNil(conn.baseURL)
+    }
 }

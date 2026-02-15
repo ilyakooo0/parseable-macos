@@ -4,7 +4,7 @@ Native macOS log viewer for [Parseable](https://www.parseable.com/) built with S
 
 ## Build
 
-Requires macOS with Xcode 15+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+Requires macOS with Xcode 16+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ```bash
 brew install xcodegen

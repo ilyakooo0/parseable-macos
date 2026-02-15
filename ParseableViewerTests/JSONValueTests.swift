@@ -163,6 +163,32 @@ final class JSONValueTests: XCTestCase {
         XCTAssertEqual(arr.prettyPrinted(), "[1, 2, 3]")
     }
 
+    func testPrettyPrintedMaxDepthTruncates() {
+        // Build a nested object 5 levels deep
+        var value: JSONValue = .string("leaf")
+        for i in (0..<5).reversed() {
+            value = .object(["level\(i)": value])
+        }
+        // With maxDepth=3, should hit displayString fallback
+        let result = value.prettyPrinted(maxDepth: 3)
+        // The outer 3 levels render normally; deeper levels use displayString
+        XCTAssertTrue(result.contains("level0"))
+        XCTAssertTrue(result.contains("level1"))
+        XCTAssertTrue(result.contains("level2"))
+        // level3 should be rendered as displayString summary, not expanded
+        XCTAssertFalse(result.contains("\"level3\":"))
+    }
+
+    func testPrettyPrintedDefaultMaxDepthIsDeep() {
+        // 10 levels deep should render fine with default maxDepth=50
+        var value: JSONValue = .string("deep")
+        for _ in 0..<10 {
+            value = .object(["nest": value])
+        }
+        let result = value.prettyPrinted()
+        XCTAssertTrue(result.contains("\"deep\""))
+    }
+
     // MARK: - QueryResponse
 
     func testQueryResponseDecode() throws {

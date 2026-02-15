@@ -218,4 +218,33 @@ final class LiveTailViewModelTests: XCTestCase {
         vm.filterText = ""
         XCTAssertEqual(vm.filteredEntries.count, vm.entries.count)
     }
+
+    func testStopResetsRunningState() {
+        let connection = ServerConnection(name: "test", url: "https://example.com", username: "u", password: "p")
+        let client = try? ParseableClient(connection: connection)
+        let vm = LiveTailViewModel()
+        vm.start(client: client, stream: "test-stream")
+        XCTAssertTrue(vm.isRunning)
+        vm.stop()
+        XCTAssertFalse(vm.isRunning)
+        XCTAssertFalse(vm.isPaused)
+    }
+
+    func testStartTwiceIsNoOp() {
+        let connection = ServerConnection(name: "test", url: "https://example.com", username: "u", password: "p")
+        let client = try? ParseableClient(connection: connection)
+        let vm = LiveTailViewModel()
+        vm.start(client: client, stream: "test-stream")
+        XCTAssertTrue(vm.isRunning)
+        // Starting again while running should be a no-op
+        vm.start(client: client, stream: "other-stream")
+        XCTAssertTrue(vm.isRunning)
+        vm.stop()
+    }
+
+    func testDisplayedCountMatchesFilteredEntries() {
+        let vm = LiveTailViewModel()
+        XCTAssertEqual(vm.displayedCount, 0)
+        XCTAssertEqual(vm.entryCount, 0)
+    }
 }

@@ -106,8 +106,9 @@ enum JSONValue: Codable, Hashable, Sendable {
         case .object(let dict):
             if dict.isEmpty { return "{}" }
             let sortedKeys = dict.keys.sorted()
-            let lines = sortedKeys.map { key in
-                "\(innerPad)\"\(key)\": \(dict[key]!.prettyPrinted(indent: indent + 1, maxDepth: maxDepth))"
+            let lines = sortedKeys.compactMap { key -> String? in
+                guard let value = dict[key] else { return nil }
+                return "\(innerPad)\"\(key)\": \(value.prettyPrinted(indent: indent + 1, maxDepth: maxDepth))"
             }
             return "{\n\(lines.joined(separator: ",\n"))\n\(pad)}"
         }

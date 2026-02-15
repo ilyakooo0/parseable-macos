@@ -166,5 +166,40 @@ final class QueryViewModelTests: XCTestCase {
         vm.setDefaultQuery(stream: "test_stream")
         XCTAssertEqual(vm.sqlQuery, "SELECT 1")
     }
+
+    // MARK: - Query cancellation
+
+    @MainActor
+    func testCancelQuerySetsState() {
+        let vm = QueryViewModel()
+        // Simulate loading state
+        vm.isLoading = true
+        vm.cancelQuery()
+        XCTAssertFalse(vm.isLoading)
+        XCTAssertEqual(vm.errorMessage, "Query cancelled")
+    }
+
+    @MainActor
+    func testCancelQueryWhenNotLoading() {
+        let vm = QueryViewModel()
+        vm.cancelQuery()
+        // Should still set the message but not crash
+        XCTAssertFalse(vm.isLoading)
+        XCTAssertEqual(vm.errorMessage, "Query cancelled")
+    }
+
+    // MARK: - Default query uses escaped identifiers
+
+    func testSetDefaultQueryEscapesStreamName() {
+        let vm = QueryViewModel()
+        vm.setDefaultQuery(stream: "my-stream")
+        XCTAssertTrue(vm.sqlQuery.contains("\"my-stream\""))
+    }
+
+    func testSetDefaultQueryEscapesQuotesInStreamName() {
+        let vm = QueryViewModel()
+        vm.setDefaultQuery(stream: "stream\"name")
+        XCTAssertTrue(vm.sqlQuery.contains("\"stream\"\"name\""))
+    }
 }
 
