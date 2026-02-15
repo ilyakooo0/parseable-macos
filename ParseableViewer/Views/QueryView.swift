@@ -119,6 +119,7 @@ struct QueryView: View {
                     )
                     .padding(.horizontal, 8)
                     .padding(.bottom, 4)
+                    .accessibilityLabel("SQL query editor")
 
                 // Truncation warning
                 if viewModel.resultsTruncated {

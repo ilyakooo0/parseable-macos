@@ -55,7 +55,7 @@ final class SavedQueryStore {
     }
 }
 
-struct SavedQuery: Identifiable, Codable, Hashable {
+struct SavedQuery: Identifiable, Codable, Hashable, Sendable {
     var id: UUID
     var name: String
     var sql: String

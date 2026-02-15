@@ -31,7 +31,7 @@ final class QueryViewModel {
     var historyIsFull = false
     private static let maxHistory = 50
 
-    struct QueryHistoryEntry: Identifiable, Codable {
+    struct QueryHistoryEntry: Identifiable, Codable, Sendable {
         let id: UUID
         let sql: String
         let executedAt: Date

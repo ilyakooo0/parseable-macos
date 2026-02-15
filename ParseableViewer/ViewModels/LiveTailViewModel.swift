@@ -18,6 +18,10 @@ final class LiveTailViewModel {
     private var lastTimestamp: Date?
     private var seenFingerprints: Set<String> = []
 
+    deinit {
+        timer?.invalidate()
+    }
+
     // Cached formatters to avoid per-poll allocation
     private static let displayFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -37,7 +41,7 @@ final class LiveTailViewModel {
         return f
     }()
 
-    struct LiveTailEntry: Identifiable {
+    struct LiveTailEntry: Identifiable, Sendable {
         let id = UUID()
         let timestamp: Date
         let record: LogRecord

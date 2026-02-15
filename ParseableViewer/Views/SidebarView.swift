@@ -134,6 +134,7 @@ struct SidebarView: View {
                     if appState.isLoadingStreams {
                         ProgressView()
                             .controlSize(.small)
+                            .accessibilityLabel("Loading streams")
                     }
                 }
                 .padding(8)

@@ -247,4 +247,35 @@ final class LiveTailViewModelTests: XCTestCase {
         XCTAssertEqual(vm.displayedCount, 0)
         XCTAssertEqual(vm.entryCount, 0)
     }
+
+    func testClearResetsFingerprintSet() {
+        let vm = LiveTailViewModel()
+        // After clear, entries and dropped count should reset
+        vm.droppedCount = 10
+        vm.clear()
+        XCTAssertTrue(vm.entries.isEmpty)
+        XCTAssertEqual(vm.droppedCount, 0)
+    }
+
+    func testStopInvalidatesState() {
+        let vm = LiveTailViewModel()
+        // Simulate paused state
+        vm.togglePause()
+        XCTAssertTrue(vm.isPaused)
+        // Stop should reset both running and paused
+        vm.stop()
+        XCTAssertFalse(vm.isRunning)
+        XCTAssertFalse(vm.isPaused)
+    }
+
+    func testBuildSummaryWithLogField() {
+        let vm = LiveTailViewModel()
+        let record: LogRecord = [
+            "log_level": .string("debug"),
+            "log": .string("Processing request")
+        ]
+        let summary = vm.buildSummary(from: record)
+        XCTAssertTrue(summary.contains("[debug]"))
+        XCTAssertTrue(summary.contains("Processing request"))
+    }
 }

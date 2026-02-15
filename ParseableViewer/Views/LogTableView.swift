@@ -143,6 +143,9 @@ struct LogHeaderView: View {
                 .frame(width: columnWidth(for: column), alignment: .leading)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 4)
+                .accessibilityLabel(sortColumn == column
+                    ? "Sort by \(column), \(sortAscending ? "ascending" : "descending")"
+                    : "Sort by \(column)")
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))

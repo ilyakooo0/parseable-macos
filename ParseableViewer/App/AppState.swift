@@ -160,11 +160,13 @@ final class AppState {
 
     // MARK: - Connection CRUD
 
+    @MainActor
     func addConnection(_ connection: ServerConnection) {
         connections.append(connection)
         ConnectionStore.saveConnections(connections)
     }
 
+    @MainActor
     func updateConnection(_ connection: ServerConnection) {
         if let index = connections.firstIndex(where: { $0.id == connection.id }) {
             connections[index] = connection
@@ -209,11 +211,13 @@ final class AppState {
 
     // MARK: - Saved Queries
 
+    @MainActor
     func addSavedQuery(_ query: SavedQuery) {
         savedQueries.append(query)
         SavedQueryStore.save(savedQueries)
     }
 
+    @MainActor
     func removeSavedQuery(_ query: SavedQuery) {
         savedQueries.removeAll { $0.id == query.id }
         SavedQueryStore.save(savedQueries)
@@ -221,6 +225,7 @@ final class AppState {
 
     // MARK: - Error Handling
 
+    @MainActor
     func showErrorMessage(_ message: String) {
         errorMessage = message
         showError = true
