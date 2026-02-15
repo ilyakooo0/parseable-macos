@@ -60,6 +60,21 @@ enum JSONValue: Codable, Hashable, Sendable {
         }
     }
 
+    /// Like `displayString` but serializes arrays/objects as compact JSON
+    /// instead of placeholders like "[3 items]". Used for CSV export.
+    var exportString: String {
+        switch self {
+        case .array, .object:
+            if let data = try? JSONEncoder().encode(self),
+               let json = String(data: data, encoding: .utf8) {
+                return json
+            }
+            return displayString
+        default:
+            return displayString
+        }
+    }
+
     var isScalar: Bool {
         switch self {
         case .array, .object: return false

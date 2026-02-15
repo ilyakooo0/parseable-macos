@@ -124,7 +124,8 @@ final class QueryViewModel {
 
     private var queryLimit: Int {
         let stored = UserDefaults.standard.integer(forKey: "maxQueryResults")
-        return stored > 0 ? stored : 1000
+        guard stored > 0 else { return 1000 }
+        return min(stored, 100_000)
     }
 
     init() {
@@ -251,7 +252,7 @@ final class QueryViewModel {
 
         for record in records {
             let row = columns.map { column in
-                let value = record[column]?.displayString ?? ""
+                let value = record[column]?.exportString ?? ""
                 return escapeCSV(value)
             }
             csv += row.joined(separator: ",") + "\n"

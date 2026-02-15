@@ -80,7 +80,9 @@ final class ParseableClient: Sendable {
     }
 
     deinit {
-        session.invalidateAndCancel()
+        // Use finishTasksAndInvalidate so in-flight requests (e.g. a query
+        // the user just ran) can complete rather than being silently cancelled.
+        session.finishTasksAndInvalidate()
     }
 
     private var authHeader: String {
