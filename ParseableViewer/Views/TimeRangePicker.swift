@@ -40,6 +40,15 @@ struct TimeRangePicker: View {
                 DatePicker("End:", selection: $customEnd)
                     .datePickerStyle(.field)
 
+                if customEnd < customStart {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                        Text("End date must be after start date")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                }
+
                 HStack {
                     // Quick presets
                     Menu("Presets") {

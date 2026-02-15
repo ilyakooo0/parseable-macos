@@ -40,7 +40,7 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            test || true
+            test
 
       - name: Build
         run: |
@@ -114,9 +114,10 @@ jobs:
             echo "Created universal binary"
             lipo -info "$UNIVERSAL_EXEC"
           else
-            echo "Warning: Could not find executables for universal binary"
+            echo "Error: Could not find executables for universal binary"
             echo "arm64: $(ls -la arm64_app/Parseable\ Viewer.app/Contents/MacOS/ 2>/dev/null || echo 'not found')"
             echo "x86_64: $(ls -la x86_64_app/Parseable\ Viewer.app/Contents/MacOS/ 2>/dev/null || echo 'not found')"
+            exit 1
           fi
 
           # Create zip

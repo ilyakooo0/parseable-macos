@@ -139,6 +139,7 @@ struct ConnectionStatusView: View {
                     Circle()
                         .fill(appState.isConnected ? .green : .red)
                         .frame(width: 8, height: 8)
+                        .accessibilityLabel(appState.isConnected ? "Connected" : "Disconnected")
                     Text(connection.name)
                         .font(.headline)
                         .lineLimit(1)
@@ -211,6 +212,7 @@ struct SavedQueryRow: View {
     var body: some View {
         Button {
             appState.selectedStream = query.stream
+            appState.pendingSavedQuerySQL = query.sql
             appState.currentTab = .query
         } label: {
             HStack {

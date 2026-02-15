@@ -43,6 +43,7 @@ struct ServerInfoView: View {
                         Circle()
                             .fill(isHealthy ? .green : .red)
                             .frame(width: 12, height: 12)
+                            .accessibilityLabel(isHealthy ? "Healthy" : "Unhealthy")
                         Text(isHealthy ? "Healthy" : "Unhealthy")
                             .fontWeight(.medium)
                         Spacer()

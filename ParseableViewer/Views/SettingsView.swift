@@ -6,8 +6,6 @@ struct SettingsView: View {
     @AppStorage("maxQueryResults") private var maxQueryResults = 1000
     @AppStorage("liveTailPollInterval") private var liveTailPollInterval = 2.0
     @AppStorage("liveTailMaxEntries") private var liveTailMaxEntries = 5000
-    @AppStorage("monospacedFont") private var monospacedFont = true
-
     var body: some View {
         TabView {
             // General settings
@@ -43,9 +41,6 @@ struct SettingsView: View {
                             step: 1000)
                 }
 
-                Section("Display") {
-                    Toggle("Use monospaced font for logs", isOn: $monospacedFont)
-                }
             }
             .formStyle(.grouped)
             .tabItem {

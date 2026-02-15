@@ -80,6 +80,7 @@ struct LiveTailView: View {
                         Circle()
                             .fill(viewModel.isPaused ? .yellow : .green)
                             .frame(width: 8, height: 8)
+                            .accessibilityLabel(viewModel.isPaused ? "Status: Paused" : "Status: Streaming")
                         Text(viewModel.isPaused ? "Paused" : "Streaming")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -158,23 +159,14 @@ struct LiveTailEntryRow: View {
             if let level = entry.record["level"] ?? entry.record["severity"] {
                 Text(level.displayString)
                     .fontWeight(.medium)
-                    .foregroundStyle(levelColor(level.displayString))
+                    .foregroundStyle(levelColor(for: level.displayString))
                     .frame(width: 50, alignment: .leading)
             }
 
             Text(entry.summary)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func levelColor(_ level: String) -> Color {
-        switch level.lowercased() {
-        case "error", "fatal", "critical", "panic": return .red
-        case "warn", "warning": return .orange
-        case "info": return .blue
-        case "debug", "trace": return .secondary
-        default: return .primary
+                .help(entry.summary)
         }
     }
 }

@@ -111,26 +111,35 @@ final class ParseableClient: Sendable {
         return try JSONDecoder().decode([LogStream].self, from: data)
     }
 
+    private static func encodePathComponent(_ name: String) -> String {
+        name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? name
+    }
+
     func createStream(name: String) async throws {
-        _ = try await performRequest(method: "PUT", path: "/api/v1/logstream/\(name)")
+        let encoded = Self.encodePathComponent(name)
+        _ = try await performRequest(method: "PUT", path: "/api/v1/logstream/\(encoded)")
     }
 
     func deleteStream(name: String) async throws {
-        _ = try await performRequest(method: "DELETE", path: "/api/v1/logstream/\(name)")
+        let encoded = Self.encodePathComponent(name)
+        _ = try await performRequest(method: "DELETE", path: "/api/v1/logstream/\(encoded)")
     }
 
     func getStreamSchema(stream: String) async throws -> StreamSchema {
-        let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(stream)/schema")
+        let encoded = Self.encodePathComponent(stream)
+        let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/schema")
         return try JSONDecoder().decode(StreamSchema.self, from: data)
     }
 
     func getStreamStats(stream: String) async throws -> StreamStats {
-        let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(stream)/stats")
+        let encoded = Self.encodePathComponent(stream)
+        let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/stats")
         return try JSONDecoder().decode(StreamStats.self, from: data)
     }
 
     func getStreamInfo(stream: String) async throws -> StreamInfo {
-        let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(stream)/info")
+        let encoded = Self.encodePathComponent(stream)
+        let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/info")
         return try JSONDecoder().decode(StreamInfo.self, from: data)
     }
 
@@ -165,18 +174,27 @@ final class ParseableClient: Sendable {
     // MARK: - Alerts
 
     func getAlerts(stream: String) async throws -> AlertConfig {
-        // Try new API first, fall back to legacy per-stream endpoint
-        if let data = try? await performRequest(method: "GET", path: "/api/v1/alerts") {
+        // Try new API first; only fall back to legacy per-stream endpoint on 404
+        do {
+            let data = try await performRequest(method: "GET", path: "/api/v1/alerts")
             return (try? JSONDecoder().decode(AlertConfig.self, from: data)) ?? AlertConfig(alerts: [], version: nil)
+        } catch let error as ParseableError {
+            if case .serverError(let code, _) = error, code == 404 {
+                // New endpoint not available, try legacy below
+            } else {
+                throw error
+            }
         }
-        let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(stream)/alert")
+        let encoded = Self.encodePathComponent(stream)
+        let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/alert")
         return try JSONDecoder().decode(AlertConfig.self, from: data)
     }
 
     // MARK: - Retention
 
     func getRetention(stream: String) async throws -> [RetentionConfig] {
-        let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(stream)/retention")
+        let encoded = Self.encodePathComponent(stream)
+        let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/retention")
         // Handle both array and single object response
         if let array = try? JSONDecoder().decode([RetentionConfig].self, from: data) {
             return array

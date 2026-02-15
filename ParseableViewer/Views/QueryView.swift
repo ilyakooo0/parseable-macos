@@ -5,6 +5,8 @@ struct QueryView: View {
     @State private var viewModel = QueryViewModel()
     @State private var showSaveQuerySheet = false
     @State private var saveQueryName = ""
+    @State private var exportError: String?
+    @State private var showExportError = false
 
     var body: some View {
         @Bindable var vm = viewModel
@@ -182,6 +184,17 @@ struct QueryView: View {
                 viewModel.setDefaultQuery(stream: stream)
             }
         }
+        .onChange(of: appState.pendingSavedQuerySQL) { _, newSQL in
+            if let sql = newSQL {
+                viewModel.sqlQuery = sql
+                appState.pendingSavedQuerySQL = nil
+            }
+        }
+        .alert("Export Error", isPresented: $showExportError) {
+            Button("OK") {}
+        } message: {
+            Text(exportError ?? "Unknown error")
+        }
         .sheet(isPresented: $showSaveQuerySheet) {
             VStack(spacing: 16) {
                 Text("Save Query")
@@ -226,7 +239,12 @@ struct QueryView: View {
         panel.nameFieldStringValue = "export.\(type)"
         panel.begin { result in
             if result == .OK, let url = panel.url {
-                try? content.write(to: url, atomically: true, encoding: .utf8)
+                do {
+                    try content.write(to: url, atomically: true, encoding: .utf8)
+                } catch {
+                    exportError = "Export failed: \(error.localizedDescription)"
+                    showExportError = true
+                }
             }
         }
     }

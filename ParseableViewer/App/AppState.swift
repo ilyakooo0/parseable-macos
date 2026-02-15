@@ -28,6 +28,8 @@ final class AppState {
 
     // MARK: - Saved Queries
     var savedQueries: [SavedQuery] = []
+    /// Set by sidebar when user clicks a saved query; consumed by QueryView.
+    var pendingSavedQuerySQL: String?
 
     enum AppTab: String, CaseIterable, Identifiable {
         case query = "Query"
@@ -144,6 +146,7 @@ final class AppState {
         }
     }
 
+    @MainActor
     func removeConnection(_ connection: ServerConnection) {
         connections.removeAll { $0.id == connection.id }
         ConnectionStore.deleteConnection(connection)

@@ -31,15 +31,8 @@ struct LogTableView: View {
     @Binding var selectedRecord: LogRecord?
     @State private var sortColumn: String?
     @State private var sortAscending = false
-
-    var sortedRecords: [LogRecord] {
-        guard let sortColumn else { return records }
-        return records.sorted { a, b in
-            let aVal = a[sortColumn]?.displayString ?? ""
-            let bVal = b[sortColumn]?.displayString ?? ""
-            return sortAscending ? aVal < bVal : aVal > bVal
-        }
-    }
+    @State private var selectedIndex: Int?
+    @State private var cachedSorted: [LogRecord] = []
 
     var body: some View {
         if records.isEmpty {
@@ -56,15 +49,16 @@ struct LogTableView: View {
                 ScrollView([.horizontal, .vertical]) {
                     LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                         Section {
-                            ForEach(Array(sortedRecords.enumerated()), id: \.offset) { index, record in
+                            ForEach(cachedSorted.indices, id: \.self) { index in
                                 LogRowView(
-                                    record: record,
+                                    record: cachedSorted[index],
                                     columns: columns,
-                                    isSelected: selectedRecord == record,
+                                    isSelected: selectedIndex == index,
                                     isAlternate: index % 2 == 1
                                 )
                                 .onTapGesture {
-                                    selectedRecord = record
+                                    selectedIndex = index
+                                    selectedRecord = cachedSorted[index]
                                 }
                             }
                         } header: {
@@ -83,6 +77,28 @@ struct LogTableView: View {
                         .frame(minWidth: 300, idealWidth: 350)
                 }
             }
+            .onChange(of: records.count) { _, _ in rebuildSort() }
+            .onChange(of: sortColumn) { _, _ in rebuildSort() }
+            .onChange(of: sortAscending) { _, _ in rebuildSort() }
+            .onAppear { rebuildSort() }
+        }
+    }
+
+    private func rebuildSort() {
+        if let sortColumn {
+            cachedSorted = records.sorted { a, b in
+                let aVal = a[sortColumn]?.displayString ?? ""
+                let bVal = b[sortColumn]?.displayString ?? ""
+                return sortAscending ? aVal < bVal : aVal > bVal
+            }
+        } else {
+            cachedSorted = records
+        }
+        if let selectedRecord,
+           let idx = cachedSorted.firstIndex(where: { $0 == selectedRecord }) {
+            selectedIndex = idx
+        } else {
+            selectedIndex = nil
         }
     }
 }
@@ -141,6 +157,17 @@ struct LogRowView: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
                     .foregroundStyle(colorForValue(column: column, value: value))
+                    .contextMenu {
+                        Button("Copy Value") {
+                            let text = value?.displayString ?? ""
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(text, forType: .string)
+                        }
+                        Button("Copy Column Name") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(column, forType: .string)
+                        }
+                    }
             }
         }
         .background(

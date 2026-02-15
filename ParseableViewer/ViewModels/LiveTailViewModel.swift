@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 
+@MainActor
 @Observable
 final class LiveTailViewModel {
     var entries: [LiveTailEntry] = []
@@ -14,6 +15,25 @@ final class LiveTailViewModel {
     private var timer: Timer?
     private var lastTimestamp: Date?
     private var seenFingerprints: Set<String> = []
+
+    // Cached formatters to avoid per-poll allocation
+    private static let displayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss.SSS"
+        return f
+    }()
+
+    private static let isoFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private static let isoBasic: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
 
     struct LiveTailEntry: Identifiable {
         let id = UUID()
@@ -34,7 +54,6 @@ final class LiveTailViewModel {
     var entryCount: Int { entries.count }
     var displayedCount: Int { filteredEntries.count }
 
-    @MainActor
     func start(client: ParseableClient?, stream: String?) {
         guard let client, let stream, !isRunning else { return }
 
@@ -52,14 +71,13 @@ final class LiveTailViewModel {
         lastTimestamp = Date()
 
         timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
-            guard let self, !self.isPaused else { return }
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
+                guard let self, !self.isPaused else { return }
                 await self.poll(client: client, stream: stream)
             }
         }
     }
 
-    @MainActor
     func stop() {
         timer?.invalidate()
         timer = nil
@@ -71,13 +89,11 @@ final class LiveTailViewModel {
         isPaused.toggle()
     }
 
-    @MainActor
     func clear() {
         entries = []
         seenFingerprints = []
     }
 
-    @MainActor
     private func poll(client: ParseableClient, stream: String) async {
         let now = Date()
         let queryStart = lastTimestamp
@@ -87,9 +103,6 @@ final class LiveTailViewModel {
 
         do {
             let records = try await client.query(sql: sql, startTime: queryStart, endTime: now)
-
-            let formatter = DateFormatter()
-            formatter.dateFormat = "HH:mm:ss.SSS"
 
             var newEntries: [LiveTailEntry] = []
 
@@ -104,7 +117,7 @@ final class LiveTailViewModel {
                 newEntries.append(LiveTailEntry(
                     timestamp: timestamp,
                     record: record,
-                    displayTimestamp: formatter.string(from: timestamp),
+                    displayTimestamp: Self.displayFormatter.string(from: timestamp),
                     summary: summary
                 ))
             }
@@ -156,13 +169,10 @@ final class LiveTailViewModel {
             return nil
         }
         if case .string(let str) = value {
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = formatter.date(from: str) {
+            if let date = Self.isoFractional.date(from: str) {
                 return date
             }
-            formatter.formatOptions = [.withInternetDateTime]
-            return formatter.date(from: str)
+            return Self.isoBasic.date(from: str)
         }
         return nil
     }

@@ -4,14 +4,18 @@ import SwiftUI
 @Observable
 final class QueryViewModel {
     var sqlQuery = ""
-    var results: [LogRecord] = []
+    var results: [LogRecord] = [] {
+        didSet { updateFilteredResults() }
+    }
     var columns: [String] = []
     var isLoading = false
     var errorMessage: String?
     var resultCount = 0
     var queryDuration: TimeInterval?
     var selectedLogEntry: LogRecord?
-    var filterText = ""
+    var filterText = "" {
+        didSet { updateFilteredResults() }
+    }
     var resultsTruncated = false
 
     // Time range
@@ -52,6 +56,21 @@ final class QueryViewModel {
 
         var id: String { rawValue }
 
+        /// Key used in UserDefaults / SettingsView @AppStorage for persistence.
+        var settingsKey: String {
+            switch self {
+            case .last5Min: return "last5Min"
+            case .last15Min: return "last15Min"
+            case .last30Min: return "last30Min"
+            case .last1Hour: return "last1Hour"
+            case .last6Hours: return "last6Hours"
+            case .last24Hours: return "last24Hours"
+            case .last7Days: return "last7Days"
+            case .last30Days: return "last30Days"
+            case .custom: return "custom"
+            }
+        }
+
         func dateRange() -> (start: Date, end: Date) {
             let now = Date()
             let cal = Calendar.current
@@ -85,11 +104,16 @@ final class QueryViewModel {
         return timeRangeOption.dateRange().end
     }
 
-    var filteredResults: [LogRecord] {
-        guard !filterText.isEmpty else { return results }
-        return results.filter { record in
-            record.values.contains { value in
-                value.displayString.localizedCaseInsensitiveContains(filterText)
+    private(set) var filteredResults: [LogRecord] = []
+
+    private func updateFilteredResults() {
+        if filterText.isEmpty {
+            filteredResults = results
+        } else {
+            filteredResults = results.filter { record in
+                record.values.contains { value in
+                    value.displayString.localizedCaseInsensitiveContains(filterText)
+                }
             }
         }
     }
@@ -101,6 +125,11 @@ final class QueryViewModel {
 
     init() {
         queryHistory = Self.loadHistory()
+        // Apply the default time range from settings
+        if let stored = UserDefaults.standard.string(forKey: "defaultTimeRange"),
+           let option = TimeRangeOption.allCases.first(where: { $0.settingsKey == stored }) {
+            timeRangeOption = option
+        }
     }
 
     @MainActor
