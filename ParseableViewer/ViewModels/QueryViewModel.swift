@@ -21,6 +21,9 @@ final class QueryViewModel {
     }
     var resultsTruncated = false
 
+    // Schema fields for autocomplete
+    var schemaFields: [SchemaField] = []
+
     // Query task for cancellation
     private var queryTask: Task<Void, Never>?
 
@@ -304,6 +307,21 @@ final class QueryViewModel {
         errorMessage = "Query cancelled"
     }
 
+    @MainActor
+    func loadSchema(client: ParseableClient?, stream: String?) async {
+        guard let client, let stream else {
+            schemaFields = []
+            return
+        }
+        do {
+            let schema = try await client.getStreamSchema(stream: stream)
+            schemaFields = schema.fields
+        } catch {
+            // Schema load is best-effort; don't surface errors
+            schemaFields = []
+        }
+    }
+
     /// Single-pass column extraction with priority ordering.
     func extractColumns(from records: [LogRecord]) -> [String] {
         let priorityFields = ["p_timestamp", "p_tags", "p_metadata", "level", "severity", "message", "msg"]
@@ -378,6 +396,7 @@ final class QueryViewModel {
         selectedLogEntry = nil
         errorMessage = nil
         resultsTruncated = false
+        schemaFields = []
     }
 
     /// Modifies `sqlQuery` to add a column-value filter condition.

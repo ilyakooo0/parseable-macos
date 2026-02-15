@@ -107,7 +107,11 @@ struct QueryView: View {
                 .padding(8)
 
                 // SQL editor
-                SQLEditorView(text: $vm.sqlQuery)
+                SQLEditorView(
+                    text: $vm.sqlQuery,
+                    streamNames: appState.streams.map(\.name),
+                    schemaFields: viewModel.schemaFields
+                )
                     .frame(minHeight: 60, maxHeight: 120)
                     .clipShape(RoundedRectangle(cornerRadius: 4))
                     .overlay(
@@ -229,6 +233,9 @@ struct QueryView: View {
             viewModel.clearResults()
             if let stream = newValue {
                 let didSetDefault = viewModel.setDefaultQuery(stream: stream, previousStream: oldValue)
+                Task {
+                    await viewModel.loadSchema(client: appState.client, stream: stream)
+                }
                 if didSetDefault {
                     Task {
                         await viewModel.executeQuery(
@@ -241,6 +248,11 @@ struct QueryView: View {
         }
         .onAppear {
             if let stream = appState.selectedStream {
+                if viewModel.schemaFields.isEmpty {
+                    Task {
+                        await viewModel.loadSchema(client: appState.client, stream: stream)
+                    }
+                }
                 let didSetDefault = viewModel.setDefaultQuery(stream: stream)
                 if didSetDefault && viewModel.results.isEmpty {
                     Task {
