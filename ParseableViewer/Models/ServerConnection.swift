@@ -1,6 +1,6 @@
 import Foundation
 
-struct ServerConnection: Identifiable, Codable, Hashable {
+struct ServerConnection: Identifiable, Codable, Hashable, Sendable {
     var id: UUID
     var name: String
     var url: String

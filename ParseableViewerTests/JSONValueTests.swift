@@ -189,6 +189,45 @@ final class JSONValueTests: XCTestCase {
         XCTAssertTrue(result.contains("\"deep\""))
     }
 
+    // MARK: - JSON string escaping
+
+    func testEscapeJSONStringQuotes() {
+        let result = JSONValue.escapeJSONString("hello \"world\"")
+        XCTAssertEqual(result, "hello \\\"world\\\"")
+    }
+
+    func testEscapeJSONStringBackslash() {
+        let result = JSONValue.escapeJSONString("path\\to\\file")
+        XCTAssertEqual(result, "path\\\\to\\\\file")
+    }
+
+    func testEscapeJSONStringNewlineAndTab() {
+        let result = JSONValue.escapeJSONString("line1\nline2\ttab")
+        XCTAssertEqual(result, "line1\\nline2\\ttab")
+    }
+
+    func testEscapeJSONStringCarriageReturn() {
+        let result = JSONValue.escapeJSONString("before\rafter")
+        XCTAssertEqual(result, "before\\rafter")
+    }
+
+    func testEscapeJSONStringNoEscapingNeeded() {
+        let result = JSONValue.escapeJSONString("simple text 123")
+        XCTAssertEqual(result, "simple text 123")
+    }
+
+    func testPrettyPrintedStringWithSpecialChars() {
+        let value = JSONValue.string("he said \"hi\" and\\or\nnewline")
+        let result = value.prettyPrinted()
+        XCTAssertEqual(result, "\"he said \\\"hi\\\" and\\\\or\\nnewline\"")
+    }
+
+    func testPrettyPrintedObjectKeyWithSpecialChars() {
+        let value = JSONValue.object(["key\"with\"quotes": .int(1)])
+        let result = value.prettyPrinted()
+        XCTAssertTrue(result.contains("key\\\"with\\\"quotes"))
+    }
+
     // MARK: - QueryResponse
 
     func testQueryResponseDecode() throws {

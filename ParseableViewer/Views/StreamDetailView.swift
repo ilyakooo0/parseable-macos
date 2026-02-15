@@ -183,31 +183,39 @@ struct StreamDetailView: View {
         isLoading = true
         errorMessage = nil
 
+        // Fetch all stream data concurrently
+        async let schemaResult = Result { try await client.getStreamSchema(stream: stream) }
+        async let statsResult = Result { try await client.getStreamStats(stream: stream) }
+        async let infoResult = Result { try await client.getStreamInfo(stream: stream) }
+        async let retentionResult = Result { try await client.getRetention(stream: stream) }
+
+        let results = await (schemaResult, statsResult, infoResult, retentionResult)
+
         var failures: [String] = []
         var sawNotFound = false
 
-        do { schema = try await client.getStreamSchema(stream: stream) }
-        catch {
-            schema = nil; failures.append("schema")
+        func checkNotFound(_ error: Error) {
             if case .serverError(let code, _) = error as? ParseableError, code == 404 { sawNotFound = true }
         }
 
-        do { stats = try await client.getStreamStats(stream: stream) }
-        catch {
-            stats = nil; failures.append("stats")
-            if case .serverError(let code, _) = error as? ParseableError, code == 404 { sawNotFound = true }
+        switch results.0 {
+        case .success(let v): schema = v
+        case .failure(let e): schema = nil; failures.append("schema"); checkNotFound(e)
         }
 
-        do { info = try await client.getStreamInfo(stream: stream) }
-        catch {
-            info = nil; failures.append("info")
-            if case .serverError(let code, _) = error as? ParseableError, code == 404 { sawNotFound = true }
+        switch results.1 {
+        case .success(let v): stats = v
+        case .failure(let e): stats = nil; failures.append("stats"); checkNotFound(e)
         }
 
-        do { retention = try await client.getRetention(stream: stream) }
-        catch {
-            retention = []; failures.append("retention")
-            if case .serverError(let code, _) = error as? ParseableError, code == 404 { sawNotFound = true }
+        switch results.2 {
+        case .success(let v): info = v
+        case .failure(let e): info = nil; failures.append("info"); checkNotFound(e)
+        }
+
+        switch results.3 {
+        case .success(let v): retention = v
+        case .failure(let e): retention = []; failures.append("retention"); checkNotFound(e)
         }
 
         if sawNotFound && failures.count == 4 {

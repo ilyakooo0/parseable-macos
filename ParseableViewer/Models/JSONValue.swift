@@ -95,7 +95,7 @@ enum JSONValue: Codable, Hashable, Sendable {
         case .bool(let v): return v ? "true" : "false"
         case .int(let v): return String(v)
         case .double(let v): return String(v)
-        case .string(let v): return "\"\(v)\""
+        case .string(let v): return "\"\(Self.escapeJSONString(v))\""
         case .array(let items):
             if items.isEmpty { return "[]" }
             if items.allSatisfy({ $0.isScalar }) && items.count <= 5 {
@@ -108,10 +108,33 @@ enum JSONValue: Codable, Hashable, Sendable {
             let sortedKeys = dict.keys.sorted()
             let lines = sortedKeys.compactMap { key -> String? in
                 guard let value = dict[key] else { return nil }
-                return "\(innerPad)\"\(key)\": \(value.prettyPrinted(indent: indent + 1, maxDepth: maxDepth))"
+                return "\(innerPad)\"\(Self.escapeJSONString(key))\": \(value.prettyPrinted(indent: indent + 1, maxDepth: maxDepth))"
             }
             return "{\n\(lines.joined(separator: ",\n"))\n\(pad)}"
         }
+    }
+
+    /// Escapes special characters for valid JSON string output.
+    static func escapeJSONString(_ s: String) -> String {
+        var result = ""
+        result.reserveCapacity(s.count)
+        for char in s {
+            switch char {
+            case "\"": result += "\\\""
+            case "\\": result += "\\\\"
+            case "\n": result += "\\n"
+            case "\r": result += "\\r"
+            case "\t": result += "\\t"
+            default:
+                if char.asciiValue.map({ $0 < 0x20 }) == true {
+                    let code = char.asciiValue!
+                    result += String(format: "\\u%04x", code)
+                } else {
+                    result.append(char)
+                }
+            }
+        }
+        return result
     }
 }
 
