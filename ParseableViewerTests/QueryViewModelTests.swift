@@ -91,6 +91,7 @@ final class QueryViewModelTests: XCTestCase {
             ["name": .string("Bob"), "age": .int(25)]
         ]
         vm.columns = ["name", "age"]
+        vm.columnOrder = ["name", "age"]
         let csv = vm.exportAsCSV()
 
         let lines = csv.components(separatedBy: "\n").filter { !$0.isEmpty }
@@ -106,6 +107,7 @@ final class QueryViewModelTests: XCTestCase {
             ["msg": .string("hello, world"), "note": .string("has \"quotes\"")]
         ]
         vm.columns = ["msg", "note"]
+        vm.columnOrder = ["msg", "note"]
         let csv = vm.exportAsCSV()
 
         let lines = csv.components(separatedBy: "\n").filter { !$0.isEmpty }
@@ -268,6 +270,163 @@ final class QueryViewModelTests: XCTestCase {
         vm.sqlQuery = "SELECT * FROM \"logs\""
         vm.addColumnFilter(column: "msg", value: .string("it's a test"), exclude: false)
         XCTAssertTrue(vm.sqlQuery.contains("'it''s a test'"))
+    }
+
+    // MARK: - Column visibility
+
+    func testVisibleColumnsExcludesHidden() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+        vm.hiddenColumns = ["b"]
+        XCTAssertEqual(vm.visibleColumns, ["a", "c"])
+    }
+
+    func testToggleColumnVisibilityHidesColumn() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+        vm.toggleColumnVisibility("b")
+        XCTAssertTrue(vm.hiddenColumns.contains("b"))
+        XCTAssertEqual(vm.visibleColumns, ["a", "c"])
+    }
+
+    func testToggleColumnVisibilityShowsColumn() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+        vm.hiddenColumns = ["b"]
+        vm.toggleColumnVisibility("b")
+        XCTAssertFalse(vm.hiddenColumns.contains("b"))
+        XCTAssertEqual(vm.visibleColumns, ["a", "b", "c"])
+    }
+
+    func testCannotHideAllColumns() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b"]
+        vm.columnOrder = ["a", "b"]
+        vm.toggleColumnVisibility("a")
+        XCTAssertTrue(vm.hiddenColumns.contains("a"))
+        // Trying to hide the last visible column should be prevented
+        vm.toggleColumnVisibility("b")
+        XCTAssertFalse(vm.hiddenColumns.contains("b"))
+        XCTAssertEqual(vm.visibleColumns, ["b"])
+    }
+
+    func testShowAllColumns() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+        vm.hiddenColumns = ["a", "b"]
+        vm.showAllColumns()
+        XCTAssertTrue(vm.hiddenColumns.isEmpty)
+        XCTAssertEqual(vm.visibleColumns, ["a", "b", "c"])
+    }
+
+    // MARK: - Column reordering
+
+    func testMoveColumnByName() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+        vm.moveColumn("c", to: "a")
+        XCTAssertEqual(vm.columnOrder, ["c", "a", "b"])
+    }
+
+    func testMoveColumnByIndexSet() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+        vm.moveColumn(from: IndexSet(integer: 2), to: 0)
+        XCTAssertEqual(vm.columnOrder, ["c", "a", "b"])
+    }
+
+    func testResetColumnConfig() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["c", "b", "a"]
+        vm.hiddenColumns = ["b"]
+        vm.resetColumnConfig()
+        XCTAssertEqual(vm.columnOrder, ["a", "b", "c"])
+        XCTAssertTrue(vm.hiddenColumns.isEmpty)
+    }
+
+    func testVisibleColumnsRespectsOrder() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["c", "a", "b"]
+        vm.hiddenColumns = ["a"]
+        XCTAssertEqual(vm.visibleColumns, ["c", "b"])
+    }
+
+    // MARK: - Column config persistence
+
+    func testApplyColumnConfigWithNoSavedConfig() {
+        let vm = QueryViewModel()
+        vm.applyColumnConfig(extractedColumns: ["x", "y", "z"], stream: nil)
+        XCTAssertEqual(vm.columns, ["x", "y", "z"])
+        XCTAssertEqual(vm.columnOrder, ["x", "y", "z"])
+        XCTAssertTrue(vm.hiddenColumns.isEmpty)
+    }
+
+    func testApplyColumnConfigMergesNewColumns() {
+        let vm = QueryViewModel()
+        // Save a config for "test_stream"
+        let config = QueryViewModel.ColumnConfiguration(order: ["b", "a"], hidden: ["a"])
+        if let data = try? JSONEncoder().encode(config) {
+            UserDefaults.standard.set(data, forKey: "parseable_column_config_test_stream")
+        }
+
+        // Apply with new columns that include an extra column "c"
+        vm.applyColumnConfig(extractedColumns: ["a", "b", "c"], stream: "test_stream")
+        XCTAssertEqual(vm.columnOrder, ["b", "a", "c"]) // saved order preserved, new "c" appended
+        XCTAssertEqual(vm.hiddenColumns, ["a"]) // saved hidden preserved
+
+        // Clean up
+        UserDefaults.standard.removeObject(forKey: "parseable_column_config_test_stream")
+    }
+
+    func testApplyColumnConfigRemovesStaleSavedColumns() {
+        let vm = QueryViewModel()
+        // Save a config with a column that no longer exists
+        let config = QueryViewModel.ColumnConfiguration(order: ["old", "a", "b"], hidden: ["old"])
+        if let data = try? JSONEncoder().encode(config) {
+            UserDefaults.standard.set(data, forKey: "parseable_column_config_test_stream2")
+        }
+
+        vm.applyColumnConfig(extractedColumns: ["a", "b"], stream: "test_stream2")
+        XCTAssertEqual(vm.columnOrder, ["a", "b"]) // "old" removed
+        XCTAssertTrue(vm.hiddenColumns.isEmpty) // "old" was hidden but no longer exists
+
+        // Clean up
+        UserDefaults.standard.removeObject(forKey: "parseable_column_config_test_stream2")
+    }
+
+    func testClearResultsResetsColumnState() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b"]
+        vm.columnOrder = ["b", "a"]
+        vm.hiddenColumns = ["a"]
+        vm.clearResults()
+        XCTAssertTrue(vm.columns.isEmpty)
+        XCTAssertTrue(vm.columnOrder.isEmpty)
+        XCTAssertTrue(vm.hiddenColumns.isEmpty)
+    }
+
+    func testCSVExportUsesVisibleColumns() {
+        let vm = QueryViewModel()
+        vm.results = [
+            ["name": .string("Alice"), "age": .int(30), "secret": .string("hidden")],
+        ]
+        vm.columns = ["name", "age", "secret"]
+        vm.columnOrder = ["name", "age", "secret"]
+        vm.hiddenColumns = ["secret"]
+        let csv = vm.exportAsCSV()
+
+        let lines = csv.components(separatedBy: "\n").filter { !$0.isEmpty }
+        XCTAssertEqual(lines[0], "name,age")
+        XCTAssertFalse(csv.contains("secret"))
+        XCTAssertFalse(csv.contains("hidden"))
     }
 }
 
