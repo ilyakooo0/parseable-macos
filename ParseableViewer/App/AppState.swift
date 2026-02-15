@@ -104,6 +104,13 @@ final class AppState {
         isConnecting = true
         errorMessage = nil
 
+        // When switching to a different server, clear stream-specific state
+        // so stale selections don't reference streams that don't exist.
+        if activeConnection?.id != connection.id {
+            selectedStream = nil
+            streamLoadError = nil
+        }
+
         do {
             let newClient = try ParseableClient(connection: connection)
 

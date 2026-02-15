@@ -61,6 +61,12 @@ final class ParseableClient: Sendable {
     let password: String
     private let session: URLSession
 
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
     init(url: URL, username: String, password: String) {
         self.baseURL = url
         self.username = username
@@ -202,13 +208,10 @@ final class ParseableClient: Sendable {
     // MARK: - Query
 
     func query(sql: String, startTime: Date, endTime: Date) async throws -> [LogRecord] {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
         let body: [String: Any] = [
             "query": sql,
-            "startTime": formatter.string(from: startTime),
-            "endTime": formatter.string(from: endTime)
+            "startTime": Self.isoFormatter.string(from: startTime),
+            "endTime": Self.isoFormatter.string(from: endTime)
         ]
 
         let bodyData = try JSONSerialization.data(withJSONObject: body)
