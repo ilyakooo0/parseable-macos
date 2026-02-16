@@ -61,12 +61,42 @@ enum ParseableError: LocalizedError {
     }
 }
 
+private actor ResponseCache {
+    private struct Entry: Sendable {
+        let data: any Sendable
+        let timestamp: Date
+    }
+
+    private var cache: [String: Entry] = [:]
+    private let ttl: TimeInterval = 60
+
+    func get<T: Sendable>(_ key: String, as type: T.Type) -> T? {
+        guard let entry = cache[key],
+              Date().timeIntervalSince(entry.timestamp) < ttl else {
+            cache.removeValue(forKey: key)
+            return nil
+        }
+        return entry.data as? T
+    }
+
+    func set(_ key: String, value: some Sendable) {
+        cache[key] = Entry(data: value, timestamp: Date())
+    }
+
+    func invalidate() {
+        cache.removeAll()
+    }
+}
+
 final class ParseableClient: Sendable {
     let baseURL: URL
     let username: String
     let password: String
     private let session: URLSession
     private let authHeader: String
+    private let cache = ResponseCache()
+
+    private static nonisolated(unsafe) let jsonDecoder = JSONDecoder()
 
     private static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -162,15 +192,21 @@ final class ParseableClient: Sendable {
     }
 
     func getAbout() async throws -> ServerAbout {
+        let key = "about"
+        if let cached: ServerAbout = await cache.get(key, as: ServerAbout.self) {
+            return cached
+        }
         let data = try await performRequest(method: "GET", path: "/api/v1/about")
-        return try JSONDecoder().decode(ServerAbout.self, from: data)
+        let result = try Self.jsonDecoder.decode(ServerAbout.self, from: data)
+        await cache.set(key, value: result)
+        return result
     }
 
     // MARK: - Log Streams
 
     func listStreams() async throws -> [LogStream] {
         let data = try await performRequest(method: "GET", path: "/api/v1/logstream")
-        return try JSONDecoder().decode([LogStream].self, from: data)
+        return try Self.jsonDecoder.decode([LogStream].self, from: data)
     }
 
     private static func encodePathComponent(_ name: String) throws -> String {
@@ -194,21 +230,39 @@ final class ParseableClient: Sendable {
     }
 
     func getStreamSchema(stream: String) async throws -> StreamSchema {
+        let key = "schema:\(stream)"
+        if let cached: StreamSchema = await cache.get(key, as: StreamSchema.self) {
+            return cached
+        }
         let encoded = try Self.encodePathComponent(stream)
         let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/schema")
-        return try JSONDecoder().decode(StreamSchema.self, from: data)
+        let result = try Self.jsonDecoder.decode(StreamSchema.self, from: data)
+        await cache.set(key, value: result)
+        return result
     }
 
     func getStreamStats(stream: String) async throws -> StreamStats {
+        let key = "stats:\(stream)"
+        if let cached: StreamStats = await cache.get(key, as: StreamStats.self) {
+            return cached
+        }
         let encoded = try Self.encodePathComponent(stream)
         let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/stats")
-        return try JSONDecoder().decode(StreamStats.self, from: data)
+        let result = try Self.jsonDecoder.decode(StreamStats.self, from: data)
+        await cache.set(key, value: result)
+        return result
     }
 
     func getStreamInfo(stream: String) async throws -> StreamInfo {
+        let key = "info:\(stream)"
+        if let cached: StreamInfo = await cache.get(key, as: StreamInfo.self) {
+            return cached
+        }
         let encoded = try Self.encodePathComponent(stream)
         let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/info")
-        return try JSONDecoder().decode(StreamInfo.self, from: data)
+        let result = try Self.jsonDecoder.decode(StreamInfo.self, from: data)
+        await cache.set(key, value: result)
+        return result
     }
 
     // MARK: - Query
@@ -232,13 +286,13 @@ final class ParseableClient: Sendable {
         let firstByte = responseData.first(where: { $0 != 0x20 && $0 != 0x0A && $0 != 0x0D && $0 != 0x09 })
         if firstByte == 0x7B { // '{'
             do {
-                return try JSONDecoder().decode(QueryResponse.self, from: responseData).records
+                return try Self.jsonDecoder.decode(QueryResponse.self, from: responseData).records
             } catch {
                 throw ParseableError.decodingError("Unexpected query response format")
             }
         } else {
             do {
-                return try JSONDecoder().decode([LogRecord].self, from: responseData)
+                return try Self.jsonDecoder.decode([LogRecord].self, from: responseData)
             } catch {
                 throw ParseableError.decodingError("Unexpected query response format")
             }
@@ -251,7 +305,7 @@ final class ParseableClient: Sendable {
         // Try new API first; only fall back to legacy per-stream endpoint on 404
         do {
             let data = try await performRequest(method: "GET", path: "/api/v1/alerts")
-            return try JSONDecoder().decode(AlertConfig.self, from: data)
+            return try Self.jsonDecoder.decode(AlertConfig.self, from: data)
         } catch let error as ParseableError {
             if case .serverError(let code, _) = error, code == 404 {
                 // New endpoint not available, try legacy below
@@ -261,7 +315,7 @@ final class ParseableClient: Sendable {
         }
         let encoded = try Self.encodePathComponent(stream)
         let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/alert")
-        return try JSONDecoder().decode(AlertConfig.self, from: data)
+        return try Self.jsonDecoder.decode(AlertConfig.self, from: data)
     }
 
     // MARK: - Retention
@@ -271,11 +325,11 @@ final class ParseableClient: Sendable {
         let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/retention")
         if data.isEmpty { return [] }
         // Handle both array and single object response
-        if let array = try? JSONDecoder().decode([RetentionConfig].self, from: data) {
+        if let array = try? Self.jsonDecoder.decode([RetentionConfig].self, from: data) {
             return array
         }
         do {
-            let single = try JSONDecoder().decode(RetentionConfig.self, from: data)
+            let single = try Self.jsonDecoder.decode(RetentionConfig.self, from: data)
             return [single]
         } catch {
             throw ParseableError.decodingError("Unexpected retention response format")
@@ -286,7 +340,7 @@ final class ParseableClient: Sendable {
 
     func listUsers() async throws -> [UserInfo] {
         let data = try await performRequest(method: "GET", path: "/api/v1/user")
-        return try JSONDecoder().decode([UserInfo].self, from: data)
+        return try Self.jsonDecoder.decode([UserInfo].self, from: data)
     }
 
     // MARK: - Filters
@@ -294,17 +348,21 @@ final class ParseableClient: Sendable {
     func listFilters() async throws -> [ParseableFilter] {
         let data = try await performRequest(method: "GET", path: "/api/v1/filters")
         if data.isEmpty { return [] }
-        return try JSONDecoder().decode([ParseableFilter].self, from: data)
+        return try Self.jsonDecoder.decode([ParseableFilter].self, from: data)
     }
 
     func createFilter(_ filter: ParseableFilter) async throws -> ParseableFilter {
         let body = try JSONEncoder().encode(filter)
         let data = try await performRequest(method: "POST", path: "/api/v1/filters", body: body)
-        return try JSONDecoder().decode(ParseableFilter.self, from: data)
+        return try Self.jsonDecoder.decode(ParseableFilter.self, from: data)
     }
 
     func deleteFilter(id: String) async throws {
         let encoded = try Self.encodePathComponent(id)
         _ = try await performRequest(method: "DELETE", path: "/api/v1/filters/\(encoded)")
+    }
+
+    func invalidateCache() async {
+        await cache.invalidate()
     }
 }

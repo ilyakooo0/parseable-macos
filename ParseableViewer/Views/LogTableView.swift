@@ -114,19 +114,18 @@ func parseSeverity(from value: String) -> SeverityLevel {
     return .unknown
 }
 
-/// Extracts the severity level from a log record by checking common column names.
-func extractSeverity(from record: LogRecord) -> SeverityLevel {
-    for (key, value) in record {
-        if severityColumnNames.contains(key.lowercased()) {
-            let str: String
-            switch value {
-            case .string(let s): str = s
-            case .int(let i):    str = String(i)
-            default:             continue
-            }
-            let level = parseSeverity(from: str)
-            if level != .unknown { return level }
+/// Extracts the severity level from a log record by checking only known severity columns.
+func extractSeverity(from record: LogRecord, severityColumns: Set<String>) -> SeverityLevel {
+    for col in severityColumns {
+        guard let value = record[col] else { continue }
+        let str: String
+        switch value {
+        case .string(let s): str = s
+        case .int(let i):    str = String(i)
+        default:             continue
         }
+        let level = parseSeverity(from: str)
+        if level != .unknown { return level }
     }
     return .unknown
 }
@@ -155,6 +154,12 @@ func buildSeverityColumnSet(columns: [String]) -> Set<String> {
 
 // MARK: - LogTableView
 
+struct IndexedRecord: Identifiable {
+    let id: Int
+    let record: LogRecord
+    let severity: SeverityLevel
+}
+
 struct LogTableView: View {
     let records: [LogRecord]
     let columns: [String]
@@ -166,8 +171,7 @@ struct LogTableView: View {
     @State private var sortColumn: String?
     @State private var sortAscending = false
     @State private var selectedIndex: Int?
-    @State private var cachedSorted: [LogRecord] = []
-    @State private var cachedSeverities: [SeverityLevel] = []
+    @State private var cachedSorted: [IndexedRecord] = []
     @State private var severityColumnSet: Set<String> = []
     @State private var sortTask: Task<Void, Never>?
     @State private var widthTask: Task<Void, Never>?
@@ -196,25 +200,25 @@ struct LogTableView: View {
                 ScrollView([.horizontal, .vertical]) {
                     LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                         Section {
-                            ForEach(cachedSorted.indices, id: \.self) { index in
+                            ForEach(Array(cachedSorted.enumerated()), id: \.element.id) { index, item in
                                 LogRowView(
-                                    record: cachedSorted[index],
+                                    record: item.record,
                                     columns: columns,
                                     columnWidths: columnWidths,
-                                    isSelected: selectedIndex == index,
+                                    isSelected: selectedIndex == item.id,
                                     isAlternate: index % 2 == 1,
-                                    severity: index < cachedSeverities.count ? cachedSeverities[index] : .unknown,
+                                    severity: item.severity,
                                     severityColumns: severityColumnSet,
                                     wrapText: wrapText,
                                     onCellFilter: onCellFilter
                                 )
                                 .onTapGesture {
-                                    if selectedIndex == index {
+                                    if selectedIndex == item.id {
                                         selectedIndex = nil
                                         selectedRecord = nil
                                     } else {
-                                        selectedIndex = index
-                                        selectedRecord = cachedSorted[index]
+                                        selectedIndex = item.id
+                                        selectedRecord = item.record
                                     }
                                 }
                             }
@@ -277,25 +281,29 @@ struct LogTableView: View {
             let recs = records
             let col = sortColumn
             let asc = sortAscending
-            let sorted: [LogRecord]
-            if let col {
-                sorted = await Task.detached(priority: .userInitiated) {
-                    recs.sorted { a, b in
-                        let aVal = a[col] ?? .null
-                        let bVal = b[col] ?? .null
+            let sevCols = buildSeverityColumnSet(columns: columns)
+            let indexed: [IndexedRecord] = await Task.detached(priority: .userInitiated) {
+                let enumerated = Array(recs.enumerated())
+                let sorted: [(offset: Int, element: LogRecord)]
+                if let col {
+                    sorted = enumerated.sorted { a, b in
+                        let aVal = a.element[col] ?? .null
+                        let bVal = b.element[col] ?? .null
                         return asc ? aVal < bVal : bVal < aVal
                     }
-                }.value
-            } else {
-                sorted = recs
-            }
+                } else {
+                    sorted = enumerated
+                }
+                return sorted.map {
+                    IndexedRecord(id: $0.offset, record: $0.element, severity: extractSeverity(from: $0.element, severityColumns: sevCols))
+                }
+            }.value
             guard !Task.isCancelled else { return }
-            cachedSorted = sorted
-            cachedSeverities = sorted.map { extractSeverity(from: $0) }
-            severityColumnSet = buildSeverityColumnSet(columns: columns)
+            cachedSorted = indexed
+            severityColumnSet = sevCols
             if let selectedRecord,
-               let idx = cachedSorted.firstIndex(where: { $0 == selectedRecord }) {
-                selectedIndex = idx
+               let match = cachedSorted.first(where: { $0.record == selectedRecord }) {
+                selectedIndex = match.id
             } else {
                 selectedIndex = nil
             }
@@ -303,20 +311,25 @@ struct LogTableView: View {
     }
 
     private func rebuildSort() {
+        let sevCols = buildSeverityColumnSet(columns: columns)
+        let enumerated = Array(records.enumerated())
+        let sorted: [(offset: Int, element: LogRecord)]
         if let sortColumn {
-            cachedSorted = records.sorted { a, b in
-                let aVal = a[sortColumn] ?? .null
-                let bVal = b[sortColumn] ?? .null
+            sorted = enumerated.sorted { a, b in
+                let aVal = a.element[sortColumn] ?? .null
+                let bVal = b.element[sortColumn] ?? .null
                 return sortAscending ? aVal < bVal : bVal < aVal
             }
         } else {
-            cachedSorted = records
+            sorted = enumerated
         }
-        cachedSeverities = cachedSorted.map { extractSeverity(from: $0) }
-        severityColumnSet = buildSeverityColumnSet(columns: columns)
+        cachedSorted = sorted.map {
+            IndexedRecord(id: $0.offset, record: $0.element, severity: extractSeverity(from: $0.element, severityColumns: sevCols))
+        }
+        severityColumnSet = sevCols
         if let selectedRecord,
-           let idx = cachedSorted.firstIndex(where: { $0 == selectedRecord }) {
-            selectedIndex = idx
+           let match = cachedSorted.first(where: { $0.record == selectedRecord }) {
+            selectedIndex = match.id
         } else {
             selectedIndex = nil
         }

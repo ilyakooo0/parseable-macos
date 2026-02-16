@@ -71,25 +71,25 @@ struct LogDetailView: View {
 
 struct FormattedRecordView: View {
     let record: LogRecord
+    let sortedKeys: [String]
 
-    var sortedKeys: [String] {
+    init(record: LogRecord) {
+        self.record = record
         let priority = ["p_timestamp", "level", "severity", "message", "msg"]
         var keys = record.keys.sorted()
         var result: [String] = []
-
         for p in priority {
             if let idx = keys.firstIndex(of: p) {
                 result.append(keys.remove(at: idx))
             }
         }
         result.append(contentsOf: keys)
-        return result
+        self.sortedKeys = result
     }
 
     var body: some View {
-        let keys = sortedKeys
         VStack(alignment: .leading, spacing: 1) {
-            ForEach(Array(keys.enumerated()), id: \.element) { index, key in
+            ForEach(Array(sortedKeys.enumerated()), id: \.element) { index, key in
                 HStack(alignment: .top, spacing: 8) {
                     Text(key)
                         .font(.system(.caption, design: .monospaced))
