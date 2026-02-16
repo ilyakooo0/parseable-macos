@@ -28,6 +28,7 @@ final class LiveTailViewModel {
     nonisolated(unsafe) private var timer: Timer?
     private var lastTimestamp: Date?
     private var seenFingerprints: Set<String> = []
+    private var allKnownKeys: Set<String> = []
     private var consecutiveErrors = 0
     private static let maxConsecutiveErrors = 5
 
@@ -60,6 +61,7 @@ final class LiveTailViewModel {
         let record: LogRecord
         let displayTimestamp: String
         let summary: String
+        let fingerprint: String
     }
 
     struct ColumnFilter: Identifiable, Equatable, Sendable {
@@ -76,32 +78,46 @@ final class LiveTailViewModel {
     }
 
     private(set) var cachedFilteredEntries: [LiveTailEntry] = []
+    private(set) var cachedFilteredRecords: [LogRecord] = []
     private(set) var filteredEntriesGeneration: Int = 0
 
     private func rebuildFilteredEntries() {
-        var result = entries
+        let hasColumnFilters = !columnFilters.isEmpty
+        let hasTextFilter = !filterText.isEmpty
+        let activeFilters = columnFilters
+        let text = filterText
 
-        for filter in columnFilters {
-            result = result.filter { entry in
-                let recordValue = entry.record[filter.column]
-                let matches: Bool
-                if filter.value == nil || filter.value == .null {
-                    matches = recordValue == nil || recordValue == .null
-                } else {
-                    matches = recordValue == filter.value
+        let result: [LiveTailEntry]
+        if !hasColumnFilters && !hasTextFilter {
+            result = entries
+        } else {
+            result = entries.filter { entry in
+                if hasColumnFilters {
+                    for filter in activeFilters {
+                        let recordValue = entry.record[filter.column]
+                        let matches: Bool
+                        if filter.value == nil || filter.value == .null {
+                            matches = recordValue == nil || recordValue == .null
+                        } else {
+                            matches = recordValue == filter.value
+                        }
+                        if filter.exclude ? matches : !matches {
+                            return false
+                        }
+                    }
                 }
-                return filter.exclude ? !matches : matches
-            }
-        }
-
-        if !filterText.isEmpty {
-            result = result.filter { entry in
-                entry.summary.localizedCaseInsensitiveContains(filterText) ||
-                entry.record.values.contains { $0.displayString.localizedCaseInsensitiveContains(filterText) }
+                if hasTextFilter {
+                    if !entry.summary.localizedCaseInsensitiveContains(text) &&
+                       !entry.record.values.contains(where: { $0.displayString.localizedCaseInsensitiveContains(text) }) {
+                        return false
+                    }
+                }
+                return true
             }
         }
 
         cachedFilteredEntries = result
+        cachedFilteredRecords = result.map { $0.record }
         filteredEntriesGeneration += 1
     }
 
@@ -139,6 +155,7 @@ final class LiveTailViewModel {
         errorMessage = nil
         entries = []
         seenFingerprints = []
+        allKnownKeys = []
         droppedCount = 0
         consecutiveErrors = 0
         lastPollTime = nil
@@ -172,6 +189,7 @@ final class LiveTailViewModel {
     func clear() {
         entries = []
         seenFingerprints = []
+        allKnownKeys = []
         droppedCount = 0
         columns = []
         columnOrder = []
@@ -326,7 +344,8 @@ final class LiveTailViewModel {
                     timestamp: timestamp,
                     record: record,
                     displayTimestamp: Self.displayFormatter.string(from: timestamp),
-                    summary: summary
+                    summary: summary,
+                    fingerprint: fp
                 ))
             }
 
@@ -338,15 +357,26 @@ final class LiveTailViewModel {
                     droppedCount += excess
                     entries.removeFirst(excess)
 
-                    // Rebuild fingerprint set from remaining entries to bound memory
-                    // and ensure dropped entries can be re-detected if they reappear.
-                    seenFingerprints = Set(entries.map { Self.fingerprint(for: $0.record) })
+                    // Rebuild fingerprint set from stored values (no re-hashing)
+                    seenFingerprints = Set(entries.map { $0.fingerprint })
                 }
 
-                updateColumns(stream: stream)
+                // Only scan new records for new keys
+                var hasNewKeys = false
+                for entry in newEntries {
+                    for key in entry.record.keys {
+                        if allKnownKeys.insert(key).inserted {
+                            hasNewKeys = true
+                        }
+                    }
+                }
+                if hasNewKeys {
+                    updateColumns(stream: stream)
+                }
+
+                rebuildFilteredEntries()
             }
 
-            rebuildFilteredEntries()
             lastTimestamp = now
             lastPollTime = now
             errorMessage = nil

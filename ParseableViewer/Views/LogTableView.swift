@@ -142,6 +142,17 @@ func severityRowTint(for level: SeverityLevel) -> Color? {
     }
 }
 
+/// Builds the set of column names (preserving original casing) that are severity columns.
+func buildSeverityColumnSet(columns: [String]) -> Set<String> {
+    var result = Set<String>()
+    for col in columns {
+        if severityColumnNames.contains(col.lowercased()) {
+            result.insert(col)
+        }
+    }
+    return result
+}
+
 // MARK: - LogTableView
 
 struct LogTableView: View {
@@ -156,6 +167,8 @@ struct LogTableView: View {
     @State private var sortAscending = false
     @State private var selectedIndex: Int?
     @State private var cachedSorted: [LogRecord] = []
+    @State private var cachedSeverities: [SeverityLevel] = []
+    @State private var severityColumnSet: Set<String> = []
     @State private var sortTask: Task<Void, Never>?
     @State private var widthTask: Task<Void, Never>?
     @State private var columnWidths: [String: CGFloat] = [:]
@@ -190,6 +203,8 @@ struct LogTableView: View {
                                     columnWidths: columnWidths,
                                     isSelected: selectedIndex == index,
                                     isAlternate: index % 2 == 1,
+                                    severity: index < cachedSeverities.count ? cachedSeverities[index] : .unknown,
+                                    severityColumns: severityColumnSet,
                                     wrapText: wrapText,
                                     onCellFilter: onCellFilter
                                 )
@@ -243,7 +258,12 @@ struct LogTableView: View {
             .onChange(of: sortColumn) { _, _ in debouncedRebuildSort() }
             .onChange(of: sortAscending) { _, _ in debouncedRebuildSort() }
             .onAppear {
-                columnWidths = computeColumnWidths(columns: columns, records: records)
+                let cols = columns
+                let recs = records
+                widthTask = Task.detached(priority: .userInitiated) {
+                    let widths = computeColumnWidths(columns: cols, records: recs)
+                    await MainActor.run { columnWidths = widths }
+                }
                 rebuildSort()
             }
         }
@@ -271,6 +291,8 @@ struct LogTableView: View {
             }
             guard !Task.isCancelled else { return }
             cachedSorted = sorted
+            cachedSeverities = sorted.map { extractSeverity(from: $0) }
+            severityColumnSet = buildSeverityColumnSet(columns: columns)
             if let selectedRecord,
                let idx = cachedSorted.firstIndex(where: { $0 == selectedRecord }) {
                 selectedIndex = idx
@@ -290,6 +312,8 @@ struct LogTableView: View {
         } else {
             cachedSorted = records
         }
+        cachedSeverities = cachedSorted.map { extractSeverity(from: $0) }
+        severityColumnSet = buildSeverityColumnSet(columns: columns)
         if let selectedRecord,
            let idx = cachedSorted.firstIndex(where: { $0 == selectedRecord }) {
             selectedIndex = idx
@@ -511,7 +535,7 @@ struct LogHeaderView: View {
         }
         .background(Color(nsColor: .controlBackgroundColor))
         .border(Color.secondary.opacity(0.2), width: 0.5)
-        .onChange(of: records.count) { _, _ in
+        .onChange(of: records) { _, _ in
             uniqueValuesCache = [:]
         }
     }
@@ -569,6 +593,8 @@ struct LogRowView: View {
     let columnWidths: [String: CGFloat]
     let isSelected: Bool
     let isAlternate: Bool
+    var severity: SeverityLevel = .unknown
+    var severityColumns: Set<String> = []
     var wrapText: Bool = false
     var onCellFilter: ((_ column: String, _ value: JSONValue?, _ exclude: Bool) -> Void)?
 
@@ -613,7 +639,7 @@ struct LogRowView: View {
                     if isAlternate {
                         Color.primary.opacity(0.02)
                     }
-                    if let tint = severityRowTint(for: extractSeverity(from: record)) {
+                    if let tint = severityRowTint(for: severity) {
                         tint
                     }
                 }
@@ -623,7 +649,7 @@ struct LogRowView: View {
 
     private func colorForValue(column: String, value: JSONValue?) -> Color {
         guard let value else { return .secondary }
-        if severityColumnNames.contains(column.lowercased()) {
+        if severityColumns.contains(column) {
             return levelColor(for: value.displayString)
         }
         return .primary

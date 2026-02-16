@@ -5,8 +5,14 @@ import SwiftUI
 final class QueryViewModel {
     var sqlQuery = ""
     var results: [LogRecord] = [] {
-        didSet { updateFilteredResults() }
+        didSet {
+            cachedSearchTexts = results.map { record in
+                record.values.map { $0.displayString }.joined(separator: " ")
+            }
+            updateFilteredResults()
+        }
     }
+    private var cachedSearchTexts: [String] = []
     var columns: [String] = []
     var columnOrder: [String] = []
     var hiddenColumns: Set<String> = []
@@ -266,10 +272,9 @@ final class QueryViewModel {
         if filterText.isEmpty {
             filteredResults = results
         } else {
-            filteredResults = results.filter { record in
-                record.values.contains { value in
-                    value.displayString.localizedCaseInsensitiveContains(filterText)
-                }
+            let text = filterText
+            filteredResults = zip(results, cachedSearchTexts).compactMap { record, searchText in
+                searchText.localizedCaseInsensitiveContains(text) ? record : nil
             }
         }
     }
@@ -453,17 +458,19 @@ final class QueryViewModel {
     static func buildCSV(records: [LogRecord], columns: [String]) -> String {
         guard !records.isEmpty, !columns.isEmpty else { return "" }
 
-        var csv = columns.map { escapeCSV($0) }.joined(separator: ",") + "\n"
+        var lines: [String] = []
+        lines.reserveCapacity(records.count + 1)
+        lines.append(columns.map { escapeCSV($0) }.joined(separator: ","))
 
         for record in records {
             let row = columns.map { column in
                 let value = record[column]?.exportString ?? ""
                 return escapeCSV(value)
             }
-            csv += row.joined(separator: ",") + "\n"
+            lines.append(row.joined(separator: ","))
         }
 
-        return csv
+        return lines.joined(separator: "\n") + "\n"
     }
 
     private static func escapeCSV(_ value: String) -> String {

@@ -108,10 +108,10 @@ enum SQLCompletionProvider {
                 where field.name.uppercased().hasPrefix(uppercasePrefix) {
                 items.append(SQLCompletionItem(text: field.name, kind: .column, detail: field.dataType))
             }
-            for fn in SQLSyntaxHighlighter.functions.sorted() where fn.hasPrefix(uppercasePrefix) {
+            for fn in SQLSyntaxHighlighter.sortedFunctions where fn.hasPrefix(uppercasePrefix) {
                 items.append(SQLCompletionItem(text: fn, kind: .function))
             }
-            for kw in SQLSyntaxHighlighter.keywords.sorted() where kw.hasPrefix(uppercasePrefix) {
+            for kw in SQLSyntaxHighlighter.sortedKeywords where kw.hasPrefix(uppercasePrefix) {
                 items.append(SQLCompletionItem(text: kw, kind: .keyword))
             }
 
@@ -121,10 +121,10 @@ enum SQLCompletionProvider {
             }
 
         case .general:
-            for kw in SQLSyntaxHighlighter.keywords.sorted() where kw.hasPrefix(uppercasePrefix) {
+            for kw in SQLSyntaxHighlighter.sortedKeywords where kw.hasPrefix(uppercasePrefix) {
                 items.append(SQLCompletionItem(text: kw, kind: .keyword))
             }
-            for fn in SQLSyntaxHighlighter.functions.sorted() where fn.hasPrefix(uppercasePrefix) {
+            for fn in SQLSyntaxHighlighter.sortedFunctions where fn.hasPrefix(uppercasePrefix) {
                 items.append(SQLCompletionItem(text: fn, kind: .function))
             }
             for name in streamNames.sorted() where name.uppercased().hasPrefix(uppercasePrefix) {

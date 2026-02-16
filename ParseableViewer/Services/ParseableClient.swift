@@ -66,6 +66,7 @@ final class ParseableClient: Sendable {
     let username: String
     let password: String
     private let session: URLSession
+    private let authHeader: String
 
     private static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -77,6 +78,13 @@ final class ParseableClient: Sendable {
         self.baseURL = url
         self.username = username
         self.password = password
+
+        let credentials = "\(username):\(password)"
+        if let data = credentials.data(using: .utf8) {
+            self.authHeader = "Basic \(data.base64EncodedString())"
+        } else {
+            self.authHeader = "Basic "
+        }
 
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
@@ -95,14 +103,6 @@ final class ParseableClient: Sendable {
         // Use finishTasksAndInvalidate so in-flight requests (e.g. a query
         // the user just ran) can complete rather than being silently cancelled.
         session.finishTasksAndInvalidate()
-    }
-
-    private var authHeader: String {
-        let credentials = "\(username):\(password)"
-        guard let data = credentials.data(using: .utf8) else {
-            return "Basic "
-        }
-        return "Basic \(data.base64EncodedString())"
     }
 
     private func buildRequest(method: String, path: String, body: Data? = nil, queryItems: [URLQueryItem]? = nil) throws -> URLRequest {

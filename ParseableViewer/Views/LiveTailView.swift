@@ -12,6 +12,8 @@ struct LiveTailView: View {
     @State private var sortAscending = false
     @State private var columnWidths: [String: CGFloat] = [:]
     @State private var cachedSorted: [LiveTailViewModel.LiveTailEntry] = []
+    @State private var cachedSeverities: [SeverityLevel] = []
+    @State private var severityColumnSet: Set<String> = []
     @State private var liveTailSortTask: Task<Void, Never>?
 
     var body: some View {
@@ -266,7 +268,7 @@ struct LiveTailView: View {
         }
         .onChange(of: viewModel.visibleColumns) { _, newColumns in
             // Compute widths for any newly visible columns
-            let records = viewModel.cachedFilteredEntries.map { $0.record }
+            let records = viewModel.cachedFilteredRecords
             for col in newColumns where columnWidths[col] == nil {
                 columnWidths[col] = idealColumnWidth(for: col, records: records)
             }
@@ -278,8 +280,11 @@ struct LiveTailView: View {
 
     private func rebuildSortedEntries() {
         let entries = viewModel.cachedFilteredEntries
+        let cols = viewModel.visibleColumns
         guard let col = sortColumn else {
             cachedSorted = entries
+            cachedSeverities = entries.map { extractSeverity(from: $0.record) }
+            severityColumnSet = buildSeverityColumnSet(columns: cols)
             return
         }
         liveTailSortTask?.cancel()
@@ -287,13 +292,17 @@ struct LiveTailView: View {
         liveTailSortTask = Task {
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
-            let sorted = entries.sorted { a, b in
-                let aVal = a.record[col] ?? .null
-                let bVal = b.record[col] ?? .null
-                return asc ? aVal < bVal : bVal < aVal
-            }
+            let sorted = await Task.detached(priority: .userInitiated) {
+                entries.sorted { a, b in
+                    let aVal = a.record[col] ?? .null
+                    let bVal = b.record[col] ?? .null
+                    return asc ? aVal < bVal : bVal < aVal
+                }
+            }.value
             guard !Task.isCancelled else { return }
             cachedSorted = sorted
+            cachedSeverities = sorted.map { extractSeverity(from: $0.record) }
+            severityColumnSet = buildSeverityColumnSet(columns: cols)
         }
     }
 
@@ -309,6 +318,8 @@ struct LiveTailView: View {
                                 columnWidths: columnWidths,
                                 isSelected: selectedRecord == cachedSorted[index].record,
                                 isAlternate: index % 2 == 1,
+                                severity: index < cachedSeverities.count ? cachedSeverities[index] : .unknown,
+                                severityColumns: severityColumnSet,
                                 wrapText: wrapText,
                                 onCellFilter: { column, value, exclude in
                                     viewModel.addColumnFilter(column: column, value: value, exclude: exclude)
@@ -329,7 +340,7 @@ struct LiveTailView: View {
                             sortColumn: $sortColumn,
                             sortAscending: $sortAscending,
                             columnWidths: $columnWidths,
-                            records: viewModel.cachedFilteredEntries.map { $0.record },
+                            records: viewModel.cachedFilteredRecords,
                             onMoveColumn: { from, to in
                                 viewModel.moveColumn(from, to: to)
                             },
