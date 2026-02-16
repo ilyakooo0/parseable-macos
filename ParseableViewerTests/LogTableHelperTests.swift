@@ -161,37 +161,44 @@ final class LogTableHelperTests: XCTestCase {
 
     func testExtractSeverityFromLevelColumn() {
         let record: LogRecord = ["level": .string("error"), "message": .string("boom")]
-        XCTAssertEqual(extractSeverity(from: record), .error)
+        let sevCols = buildSeverityColumnSet(columns: Array(record.keys))
+        XCTAssertEqual(extractSeverity(from: record, severityColumns: sevCols), .error)
     }
 
     func testExtractSeverityFromSeverityColumn() {
         let record: LogRecord = ["severity": .string("warning"), "msg": .string("watch out")]
-        XCTAssertEqual(extractSeverity(from: record), .warning)
+        let sevCols = buildSeverityColumnSet(columns: Array(record.keys))
+        XCTAssertEqual(extractSeverity(from: record, severityColumns: sevCols), .warning)
     }
 
     func testExtractSeverityFromSeverityTextColumn() {
         let record: LogRecord = ["severity_text": .string("FATAL")]
-        XCTAssertEqual(extractSeverity(from: record), .fatal)
+        let sevCols = buildSeverityColumnSet(columns: Array(record.keys))
+        XCTAssertEqual(extractSeverity(from: record, severityColumns: sevCols), .fatal)
     }
 
     func testExtractSeverityFromLogLevelColumn() {
         let record: LogRecord = ["log_level": .string("info")]
-        XCTAssertEqual(extractSeverity(from: record), .info)
+        let sevCols = buildSeverityColumnSet(columns: Array(record.keys))
+        XCTAssertEqual(extractSeverity(from: record, severityColumns: sevCols), .info)
     }
 
     func testExtractSeverityFromNumericValue() {
         let record: LogRecord = ["priority": .int(3)]
-        XCTAssertEqual(extractSeverity(from: record), .error)
+        let sevCols = buildSeverityColumnSet(columns: Array(record.keys))
+        XCTAssertEqual(extractSeverity(from: record, severityColumns: sevCols), .error)
     }
 
     func testExtractSeverityNoSeverityColumn() {
         let record: LogRecord = ["message": .string("hello"), "timestamp": .string("now")]
-        XCTAssertEqual(extractSeverity(from: record), .unknown)
+        let sevCols = buildSeverityColumnSet(columns: Array(record.keys))
+        XCTAssertEqual(extractSeverity(from: record, severityColumns: sevCols), .unknown)
     }
 
     func testExtractSeverityUnrecognizedValue() {
         let record: LogRecord = ["level": .string("custom_level")]
-        XCTAssertEqual(extractSeverity(from: record), .unknown)
+        let sevCols = buildSeverityColumnSet(columns: Array(record.keys))
+        XCTAssertEqual(extractSeverity(from: record, severityColumns: sevCols), .unknown)
     }
 
     // MARK: - severityRowTint

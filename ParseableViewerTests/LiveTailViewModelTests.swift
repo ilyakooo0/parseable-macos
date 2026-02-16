@@ -63,43 +63,38 @@ final class LiveTailViewModelTests: XCTestCase {
     // MARK: - Timestamp parsing
 
     func testParseTimestampISO8601WithFractionalSeconds() {
-        let vm = LiveTailViewModel()
         let record: LogRecord = ["p_timestamp": .string("2024-06-15T10:30:45.123Z")]
-        let date = vm.parseTimestamp(from: record)
+        let date = LiveTailViewModel.parseTimestamp(from: record)
         XCTAssertNotNil(date)
     }
 
     func testParseTimestampISO8601Basic() {
-        let vm = LiveTailViewModel()
         let record: LogRecord = ["p_timestamp": .string("2024-06-15T10:30:45Z")]
-        let date = vm.parseTimestamp(from: record)
+        let date = LiveTailViewModel.parseTimestamp(from: record)
         XCTAssertNotNil(date)
     }
 
     func testParseTimestampFallbackFields() {
-        let vm = LiveTailViewModel()
-
         // "timestamp" field
         let r1: LogRecord = ["timestamp": .string("2024-06-15T10:30:45Z")]
-        XCTAssertNotNil(vm.parseTimestamp(from: r1))
+        XCTAssertNotNil(LiveTailViewModel.parseTimestamp(from: r1))
 
         // "time" field
         let r2: LogRecord = ["time": .string("2024-06-15T10:30:45Z")]
-        XCTAssertNotNil(vm.parseTimestamp(from: r2))
+        XCTAssertNotNil(LiveTailViewModel.parseTimestamp(from: r2))
 
         // "@timestamp" field
         let r3: LogRecord = ["@timestamp": .string("2024-06-15T10:30:45Z")]
-        XCTAssertNotNil(vm.parseTimestamp(from: r3))
+        XCTAssertNotNil(LiveTailViewModel.parseTimestamp(from: r3))
     }
 
     func testParseTimestampPriorityOrder() {
-        let vm = LiveTailViewModel()
         // p_timestamp should take priority
         let record: LogRecord = [
             "p_timestamp": .string("2024-01-01T00:00:00Z"),
             "timestamp": .string("2024-12-31T23:59:59Z")
         ]
-        let date = vm.parseTimestamp(from: record)
+        let date = LiveTailViewModel.parseTimestamp(from: record)
         XCTAssertNotNil(date)
 
         let calendar = Calendar.current
@@ -109,64 +104,57 @@ final class LiveTailViewModelTests: XCTestCase {
     }
 
     func testParseTimestampNoTimestampField() {
-        let vm = LiveTailViewModel()
         let record: LogRecord = ["message": .string("no timestamp")]
-        let date = vm.parseTimestamp(from: record)
+        let date = LiveTailViewModel.parseTimestamp(from: record)
         XCTAssertNil(date)
     }
 
     func testParseTimestampNonStringValue() {
-        let vm = LiveTailViewModel()
         let record: LogRecord = ["p_timestamp": .int(1718446245)]
-        let date = vm.parseTimestamp(from: record)
+        let date = LiveTailViewModel.parseTimestamp(from: record)
         XCTAssertNil(date)
     }
 
     func testParseTimestampInvalidString() {
-        let vm = LiveTailViewModel()
         let record: LogRecord = ["p_timestamp": .string("not-a-date")]
-        let date = vm.parseTimestamp(from: record)
+        let date = LiveTailViewModel.parseTimestamp(from: record)
         XCTAssertNil(date)
     }
 
     // MARK: - Summary building
 
     func testBuildSummaryWithLevelAndMessage() {
-        let vm = LiveTailViewModel()
         let record: LogRecord = [
             "level": .string("info"),
             "message": .string("Server started")
         ]
-        let summary = vm.buildSummary(from: record)
+        let summary = LiveTailViewModel.buildSummary(from: record)
         XCTAssertTrue(summary.contains("[info]"))
         XCTAssertTrue(summary.contains("Server started"))
     }
 
     func testBuildSummaryAlternateFieldNames() {
-        let vm = LiveTailViewModel()
         let record: LogRecord = [
             "severity": .string("warn"),
             "msg": .string("Disk almost full")
         ]
-        let summary = vm.buildSummary(from: record)
+        let summary = LiveTailViewModel.buildSummary(from: record)
         XCTAssertTrue(summary.contains("[warn]"))
         XCTAssertTrue(summary.contains("Disk almost full"))
     }
 
     func testBuildSummaryFallbackToScalarFields() {
-        let vm = LiveTailViewModel()
         let record: LogRecord = [
             "status": .int(200),
             "path": .string("/api/health")
         ]
-        let summary = vm.buildSummary(from: record)
+        let summary = LiveTailViewModel.buildSummary(from: record)
         XCTAssertFalse(summary.isEmpty)
     }
 
     func testBuildSummaryEmptyRecord() {
-        let vm = LiveTailViewModel()
         let record: LogRecord = [:]
-        let summary = vm.buildSummary(from: record)
+        let summary = LiveTailViewModel.buildSummary(from: record)
         XCTAssertEqual(summary, "")
     }
 
@@ -269,12 +257,11 @@ final class LiveTailViewModelTests: XCTestCase {
     }
 
     func testBuildSummaryWithLogField() {
-        let vm = LiveTailViewModel()
         let record: LogRecord = [
             "log_level": .string("debug"),
             "log": .string("Processing request")
         ]
-        let summary = vm.buildSummary(from: record)
+        let summary = LiveTailViewModel.buildSummary(from: record)
         XCTAssertTrue(summary.contains("[debug]"))
         XCTAssertTrue(summary.contains("Processing request"))
     }

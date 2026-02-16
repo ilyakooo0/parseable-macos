@@ -36,20 +36,20 @@ final class LiveTailViewModel {
         timer?.invalidate()
     }
 
-    // Cached formatters to avoid per-poll allocation
-    private static let displayFormatter: DateFormatter = {
+    // Cached formatters — nonisolated(unsafe) so static methods can use them from Task.detached
+    nonisolated(unsafe) private static let displayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss.SSS"
         return f
     }()
 
-    private static let isoFractional: ISO8601DateFormatter = {
+    nonisolated(unsafe) private static let isoFractional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
     }()
 
-    private static let isoBasic: ISO8601DateFormatter = {
+    nonisolated(unsafe) private static let isoBasic: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
         return f
@@ -78,7 +78,9 @@ final class LiveTailViewModel {
     }
 
     private(set) var cachedFilteredEntries: [LiveTailEntry] = []
-    private(set) var cachedFilteredRecords: [LogRecord] = []
+    var cachedFilteredRecords: [LogRecord] {
+        cachedFilteredEntries.map { $0.record }
+    }
     private(set) var filteredEntriesGeneration: Int = 0
 
     private func rebuildFilteredEntries() {
@@ -117,7 +119,6 @@ final class LiveTailViewModel {
         }
 
         cachedFilteredEntries = result
-        cachedFilteredRecords = result.map { $0.record }
         filteredEntriesGeneration += 1
     }
 
@@ -262,26 +263,21 @@ final class LiveTailViewModel {
 
     // MARK: - Column Extraction
 
-    private func extractColumns(from records: [LogRecord]) -> [String] {
+    private func extractColumnsFromKeys(_ keys: Set<String>) -> [String] {
         let priorityFields = ["p_timestamp", "p_tags", "p_metadata", "level", "severity", "message", "msg"]
-        var allKeys = Set<String>()
-        for record in records {
-            allKeys.formUnion(record.keys)
-        }
-
+        var remaining = keys
         var ordered: [String] = []
         for field in priorityFields {
-            if allKeys.remove(field) != nil {
+            if remaining.remove(field) != nil {
                 ordered.append(field)
             }
         }
-        ordered.append(contentsOf: allKeys.sorted())
+        ordered.append(contentsOf: remaining.sorted())
         return ordered
     }
 
     private func updateColumns(stream: String) {
-        let allRecords = entries.map { $0.record }
-        let extracted = extractColumns(from: allRecords)
+        let extracted = extractColumnsFromKeys(allKnownKeys)
 
         if columns.isEmpty {
             // First time — apply saved config
@@ -330,23 +326,33 @@ final class LiveTailViewModel {
         do {
             let records = try await client.query(sql: sql, startTime: queryStart, endTime: now)
 
+            // Process records off the main actor using a snapshot of seen fingerprints
+            let seenSnapshot = seenFingerprints
+            let pollTime = now
+            let candidateEntries = await Task.detached(priority: .userInitiated) {
+                var results: [LiveTailEntry] = []
+                for record in records {
+                    let fp = Self.fingerprint(for: record)
+                    guard !seenSnapshot.contains(fp) else { continue }
+                    let timestamp = Self.parseTimestamp(from: record) ?? pollTime
+                    let summary = Self.buildSummary(from: record)
+                    results.append(LiveTailEntry(
+                        timestamp: timestamp,
+                        record: record,
+                        displayTimestamp: Self.displayFormatter.string(from: timestamp),
+                        summary: summary,
+                        fingerprint: fp
+                    ))
+                }
+                return results
+            }.value
+
+            // Authoritative dedup on main actor
             var newEntries: [LiveTailEntry] = []
-
-            for record in records {
-                let fp = Self.fingerprint(for: record)
-                guard !seenFingerprints.contains(fp) else { continue }
-                seenFingerprints.insert(fp)
-
-                let timestamp = parseTimestamp(from: record) ?? now
-                let summary = buildSummary(from: record)
-
-                newEntries.append(LiveTailEntry(
-                    timestamp: timestamp,
-                    record: record,
-                    displayTimestamp: Self.displayFormatter.string(from: timestamp),
-                    summary: summary,
-                    fingerprint: fp
-                ))
+            for entry in candidateEntries {
+                if seenFingerprints.insert(entry.fingerprint).inserted {
+                    newEntries.append(entry)
+                }
             }
 
             if !newEntries.isEmpty {
@@ -355,7 +361,7 @@ final class LiveTailViewModel {
                 if entries.count > maxEntries {
                     let excess = entries.count - maxEntries
                     droppedCount += excess
-                    entries.removeFirst(excess)
+                    entries = Array(entries.suffix(maxEntries))
 
                     // Rebuild fingerprint set from stored values (no re-hashing)
                     seenFingerprints = Set(entries.map { $0.fingerprint })
@@ -393,27 +399,32 @@ final class LiveTailViewModel {
         }
     }
 
-    /// Deterministic content-based fingerprint using sorted key-value pairs and FNV-1a.
-    static func fingerprint(for record: LogRecord) -> String {
-        var h0: UInt64 = 14695981039346656037
-        var h1: UInt64 = 14695981039346656037 &* 31
-        for key in record.keys.sorted() {
+    /// Deterministic content-based fingerprint using XOR with golden-ratio mixing.
+    /// Order-independent: O(k) instead of O(k log k) per record.
+    nonisolated static func fingerprint(for record: LogRecord) -> String {
+        var xorAccum0: UInt64 = 0
+        var xorAccum1: UInt64 = 0
+        for (key, value) in record {
+            var kh0: UInt64 = 14695981039346656037
+            var kh1: UInt64 = 14695981039346656037 &* 31
             for byte in key.utf8 {
-                h0 = (h0 ^ UInt64(byte)) &* 1099511628211
-                h1 = (h1 ^ UInt64(byte)) &* 6700417
+                kh0 = (kh0 ^ UInt64(byte)) &* 1099511628211
+                kh1 = (kh1 ^ UInt64(byte)) &* 6700417
             }
-            h0 = (h0 ^ 0) &* 1099511628211 // separator
-            if let val = record[key] {
-                hashJSONValue(val, h0: &h0, h1: &h1)
-            }
-            h1 = (h1 ^ 0xFF) &* 6700417 // field separator
+            kh0 = (kh0 ^ 0) &* 1099511628211 // separator
+            hashJSONValue(value, h0: &kh0, h1: &kh1)
+            kh1 = (kh1 ^ 0xFF) &* 6700417 // field separator
+            xorAccum0 ^= kh0 &* 0x9E3779B97F4A7C15
+            xorAccum1 ^= kh1 &* 0x9E3779B97F4A7C15
         }
+        let h0 = 14695981039346656037 &+ xorAccum0
+        let h1 = (14695981039346656037 &* 31) &+ xorAccum1
         return String(h0, radix: 36) + String(h1, radix: 36)
     }
 
     /// Recursively hashes a JSONValue tree without allocating intermediate strings.
     /// Uses type-discriminator bytes to prevent cross-type collisions.
-    private static func hashJSONValue(_ value: JSONValue, h0: inout UInt64, h1: inout UInt64) {
+    nonisolated private static func hashJSONValue(_ value: JSONValue, h0: inout UInt64, h1: inout UInt64) {
         switch value {
         case .null:
             h0 = (h0 ^ 0x00) &* 1099511628211
@@ -459,33 +470,39 @@ final class LiveTailViewModel {
         case .object(let dict):
             h0 = (h0 ^ 0x06) &* 1099511628211
             h1 = (h1 ^ 0x06) &* 6700417
-            for key in dict.keys.sorted() {
+            var xor0: UInt64 = 0
+            var xor1: UInt64 = 0
+            for (key, value) in dict {
+                var kh0: UInt64 = 14695981039346656037
+                var kh1: UInt64 = 14695981039346656037 &* 31
                 for byte in key.utf8 {
-                    h0 = (h0 ^ UInt64(byte)) &* 1099511628211
-                    h1 = (h1 ^ UInt64(byte)) &* 6700417
+                    kh0 = (kh0 ^ UInt64(byte)) &* 1099511628211
+                    kh1 = (kh1 ^ UInt64(byte)) &* 6700417
                 }
-                h0 = (h0 ^ 0xFD) &* 1099511628211 // key-value separator
-                if let val = dict[key] {
-                    hashJSONValue(val, h0: &h0, h1: &h1)
-                }
+                kh0 = (kh0 ^ 0xFD) &* 1099511628211 // key-value separator
+                hashJSONValue(value, h0: &kh0, h1: &kh1)
+                xor0 ^= kh0 &* 0x9E3779B97F4A7C15
+                xor1 ^= kh1 &* 0x9E3779B97F4A7C15
             }
+            h0 = h0 &+ xor0
+            h1 = h1 &+ xor1
         }
     }
 
-    func parseTimestamp(from record: LogRecord) -> Date? {
+    nonisolated static func parseTimestamp(from record: LogRecord) -> Date? {
         guard let value = record["p_timestamp"] ?? record["timestamp"] ?? record["time"] ?? record["@timestamp"] else {
             return nil
         }
         if case .string(let str) = value {
-            if let date = Self.isoFractional.date(from: str) {
+            if let date = isoFractional.date(from: str) {
                 return date
             }
-            return Self.isoBasic.date(from: str)
+            return isoBasic.date(from: str)
         }
         return nil
     }
 
-    func buildSummary(from record: LogRecord) -> String {
+    nonisolated static func buildSummary(from record: LogRecord) -> String {
         var parts: [String] = []
 
         if let level = record["level"] ?? record["severity"] ?? record["log_level"] {

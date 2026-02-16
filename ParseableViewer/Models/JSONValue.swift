@@ -60,16 +60,31 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
         }
     }
 
+    /// Compact JSON serialization without allocating a JSONEncoder.
+    var compactJSON: String {
+        switch self {
+        case .null: return "null"
+        case .bool(let v): return v ? "true" : "false"
+        case .int(let v): return String(v)
+        case .double(let v): return String(v)
+        case .string(let v): return "\"\(Self.escapeJSONString(v))\""
+        case .array(let items):
+            return "[" + items.map { $0.compactJSON }.joined(separator: ",") + "]"
+        case .object(let dict):
+            let pairs = dict.keys.sorted().compactMap { key -> String? in
+                guard let value = dict[key] else { return nil }
+                return "\"\(Self.escapeJSONString(key))\":\(value.compactJSON)"
+            }
+            return "{" + pairs.joined(separator: ",") + "}"
+        }
+    }
+
     /// Like `displayString` but serializes arrays/objects as compact JSON
     /// instead of placeholders like "[3 items]". Used for CSV export.
     var exportString: String {
         switch self {
         case .array, .object:
-            if let data = try? JSONEncoder().encode(self),
-               let json = String(data: data, encoding: .utf8) {
-                return json
-            }
-            return displayString
+            return compactJSON
         default:
             return displayString
         }

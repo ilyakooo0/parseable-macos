@@ -6,13 +6,26 @@ final class QueryViewModel {
     var sqlQuery = ""
     var results: [LogRecord] = [] {
         didSet {
-            cachedSearchTexts = results.map { record in
-                record.values.map { $0.displayString }.joined(separator: " ")
+            // Show all results immediately
+            filteredResults = results
+            // Build search texts asynchronously
+            searchTextTask?.cancel()
+            cachedSearchTexts = []
+            let snapshot = results
+            searchTextTask = Task {
+                let texts = snapshot.map { record in
+                    record.values.map { $0.displayString }.joined(separator: " ")
+                }
+                guard !Task.isCancelled else { return }
+                cachedSearchTexts = texts
+                if !filterText.isEmpty {
+                    updateFilteredResults()
+                }
             }
-            updateFilteredResults()
         }
     }
     private var cachedSearchTexts: [String] = []
+    private var searchTextTask: Task<Void, Never>?
     var columns: [String] = []
     var columnOrder: [String] = []
     var hiddenColumns: Set<String> = []
@@ -458,19 +471,27 @@ final class QueryViewModel {
     static func buildCSV(records: [LogRecord], columns: [String]) -> String {
         guard !records.isEmpty, !columns.isEmpty else { return "" }
 
-        var lines: [String] = []
-        lines.reserveCapacity(records.count + 1)
-        lines.append(columns.map { escapeCSV($0) }.joined(separator: ","))
+        var csv = String()
+        csv.reserveCapacity(columns.count * 50 * (records.count + 1))
 
+        // Header
+        for (i, col) in columns.enumerated() {
+            if i > 0 { csv.append(",") }
+            csv.append(escapeCSV(col))
+        }
+        csv.append("\n")
+
+        // Rows
         for record in records {
-            let row = columns.map { column in
+            for (i, column) in columns.enumerated() {
+                if i > 0 { csv.append(",") }
                 let value = record[column]?.exportString ?? ""
-                return escapeCSV(value)
+                csv.append(escapeCSV(value))
             }
-            lines.append(row.joined(separator: ","))
+            csv.append("\n")
         }
 
-        return lines.joined(separator: "\n") + "\n"
+        return csv
     }
 
     private static func escapeCSV(_ value: String) -> String {

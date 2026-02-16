@@ -281,10 +281,11 @@ struct LiveTailView: View {
     private func rebuildSortedEntries() {
         let entries = viewModel.cachedFilteredEntries
         let cols = viewModel.visibleColumns
+        let sevCols = buildSeverityColumnSet(columns: cols)
         guard let col = sortColumn else {
             cachedSorted = entries
-            cachedSeverities = entries.map { extractSeverity(from: $0.record) }
-            severityColumnSet = buildSeverityColumnSet(columns: cols)
+            cachedSeverities = entries.map { extractSeverity(from: $0.record, severityColumns: sevCols) }
+            severityColumnSet = sevCols
             return
         }
         liveTailSortTask?.cancel()
@@ -301,8 +302,8 @@ struct LiveTailView: View {
             }.value
             guard !Task.isCancelled else { return }
             cachedSorted = sorted
-            cachedSeverities = sorted.map { extractSeverity(from: $0.record) }
-            severityColumnSet = buildSeverityColumnSet(columns: cols)
+            cachedSeverities = sorted.map { extractSeverity(from: $0.record, severityColumns: sevCols) }
+            severityColumnSet = sevCols
         }
     }
 
@@ -311,12 +312,12 @@ struct LiveTailView: View {
             ScrollView([.horizontal, .vertical]) {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                     Section {
-                        ForEach(cachedSorted.indices, id: \.self) { index in
+                        ForEach(Array(cachedSorted.enumerated()), id: \.element.id) { index, entry in
                             LogRowView(
-                                record: cachedSorted[index].record,
+                                record: entry.record,
                                 columns: viewModel.visibleColumns,
                                 columnWidths: columnWidths,
-                                isSelected: selectedRecord == cachedSorted[index].record,
+                                isSelected: selectedRecord == entry.record,
                                 isAlternate: index % 2 == 1,
                                 severity: index < cachedSeverities.count ? cachedSeverities[index] : .unknown,
                                 severityColumns: severityColumnSet,
@@ -325,12 +326,11 @@ struct LiveTailView: View {
                                     viewModel.addColumnFilter(column: column, value: value, exclude: exclude)
                                 }
                             )
-                            .id(cachedSorted[index].id)
                             .onTapGesture {
-                                if selectedRecord == cachedSorted[index].record {
+                                if selectedRecord == entry.record {
                                     selectedRecord = nil
                                 } else {
-                                    selectedRecord = cachedSorted[index].record
+                                    selectedRecord = entry.record
                                 }
                             }
                         }
