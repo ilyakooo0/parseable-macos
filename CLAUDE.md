@@ -31,7 +31,7 @@ CI builds on `macos-15` runners via `.github/workflows/build.yml`, producing arm
 - **Concurrency**: Swift structured concurrency (`async/await`, `@MainActor`, strict `Sendable` conformance)
 - **Networking**: `URLSession` async/await, no external dependencies
 - **Project generation**: XcodeGen from `project.yml`
-- **Persistence**: `UserDefaults` for connections and saved queries; Keychain for passwords
+- **Persistence**: Keychain (data-protection) for connections and passwords; `UserDefaults` for saved queries
 
 ### Source layout
 
@@ -83,7 +83,7 @@ Live tail in Parseable uses gRPC Arrow Flight streaming. This app approximates i
 - Models use defensive `try?` decoding for optional fields to tolerate API version differences
 - Views follow the macOS pattern: `NavigationSplitView` sidebar + detail, with tab switching in the detail pane
 - All API calls are `async` and dispatched from views via `Task { }`
-- Passwords are stored in the Keychain, never in UserDefaults; `ServerConnection.password` is excluded from `Codable`
+- Connection metadata and passwords are stored in the Keychain (data-protection keychain, scoped by bundle ID to survive ad-hoc re-signing); `ServerConnection.password` is excluded from `Codable`
 - Stream names are SQL-escaped via `escapeSQLIdentifier` (double-quote wrapping) and URL-encoded via `encodePathComponent` for API paths
 - Views clear stale data before loading new content (e.g., switching streams clears previous schema/stats)
 - Entitlements: App Sandbox enabled with network.client for outbound connections
