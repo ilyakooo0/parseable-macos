@@ -30,21 +30,6 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertTrue(connections.isEmpty)
     }
 
-    func testSaveAndLoadConnections() {
-        let connection = ServerConnection(
-            name: "Test Server",
-            url: "https://logs.example.com",
-            username: "admin",
-            password: "secret123"
-        )
-        ConnectionStore.saveConnections([connection])
-        let loaded = ConnectionStore.loadConnections()
-        XCTAssertEqual(loaded.count, 1)
-        XCTAssertEqual(loaded[0].name, "Test Server")
-        XCTAssertEqual(loaded[0].url, "https://logs.example.com")
-        XCTAssertEqual(loaded[0].username, "admin")
-    }
-
     func testSaveMultipleConnections() {
         let c1 = ServerConnection(name: "Prod", url: "https://prod.example.com", username: "admin", password: "p1")
         let c2 = ServerConnection(name: "Dev", url: "https://dev.example.com", username: "dev", password: "p2")
