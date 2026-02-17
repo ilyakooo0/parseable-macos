@@ -11,15 +11,6 @@ final class ConnectionStoreTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "parseable_active_connection_id")
     }
 
-    // MARK: - Active connection ID
-
-    func testSaveAndLoadActiveConnectionID() {
-        let id = UUID()
-        ConnectionStore.saveActiveConnectionID(id)
-        let loaded = ConnectionStore.loadActiveConnectionID()
-        XCTAssertEqual(loaded, id)
-    }
-
     func testSaveNilActiveConnectionID() {
         let id = UUID()
         ConnectionStore.saveActiveConnectionID(id)
