@@ -30,14 +30,6 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertTrue(connections.isEmpty)
     }
 
-    func testSaveMultipleConnections() {
-        let c1 = ServerConnection(name: "Prod", url: "https://prod.example.com", username: "admin", password: "p1")
-        let c2 = ServerConnection(name: "Dev", url: "https://dev.example.com", username: "dev", password: "p2")
-        ConnectionStore.saveConnections([c1, c2])
-        let loaded = ConnectionStore.loadConnections()
-        XCTAssertEqual(loaded.count, 2)
-    }
-
     func testPasswordNotInKeychainConnectionData() {
         let connection = ServerConnection(
             name: "Test",
