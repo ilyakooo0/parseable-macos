@@ -1,11 +1,11 @@
 import Foundation
 
 final class ConnectionStore {
-    private static let storageKey = "parseable_connections"
-    private static let activeConnectionKey = "parseable_active_connection_id"
+    private static let keychainConnectionsKey = "parseable_connections_list"
+    private static let keychainActiveIDKey = "parseable_active_connection_id"
 
     static func loadConnections() -> [ServerConnection] {
-        guard let data = UserDefaults.standard.data(forKey: storageKey) else {
+        guard let data = KeychainService.loadData(for: keychainConnectionsKey) else {
             return []
         }
         return (try? JSONDecoder().decode([ServerConnection].self, from: data)) ?? []
@@ -20,7 +20,7 @@ final class ConnectionStore {
             }
         }
         if let data = try? JSONEncoder().encode(connections) {
-            UserDefaults.standard.set(data, forKey: storageKey)
+            KeychainService.saveData(data, for: keychainConnectionsKey)
         }
     }
 
@@ -29,13 +29,18 @@ final class ConnectionStore {
     }
 
     static func loadActiveConnectionID() -> UUID? {
-        guard let string = UserDefaults.standard.string(forKey: activeConnectionKey) else {
+        guard let data = KeychainService.loadData(for: keychainActiveIDKey),
+              let string = String(data: data, encoding: .utf8) else {
             return nil
         }
         return UUID(uuidString: string)
     }
 
     static func saveActiveConnectionID(_ id: UUID?) {
-        UserDefaults.standard.set(id?.uuidString, forKey: activeConnectionKey)
+        if let id, let data = id.uuidString.data(using: .utf8) {
+            KeychainService.saveData(data, for: keychainActiveIDKey)
+        } else {
+            KeychainService.deleteData(for: keychainActiveIDKey)
+        }
     }
 }
