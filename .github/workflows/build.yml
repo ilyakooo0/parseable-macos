@@ -9,6 +9,10 @@ on:
 jobs:
   build:
     runs-on: macos-15
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
     strategy:
       matrix:
         include:
@@ -69,6 +73,11 @@ jobs:
             exit 1
           fi
 
+      - name: Attest artifact
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ParseableViewer-${{ matrix.arch }}.zip
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -78,6 +87,10 @@ jobs:
   create-universal:
     needs: build
     runs-on: macos-15
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -125,6 +138,11 @@ jobs:
           cd universal_app
           zip -r -y "../ParseableViewer-universal.zip" "Parseable Viewer.app"
 
+      - name: Attest universal artifact
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ParseableViewer-universal.zip
+
       - name: Upload universal artifact
         uses: actions/upload-artifact@v4
         with:
@@ -140,6 +158,8 @@ jobs:
     if: github.event_name == 'push'
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -154,6 +174,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            artifacts/ParseableViewer-arm64/ParseableViewer-arm64.zip
+            artifacts/ParseableViewer-x86_64/ParseableViewer-x86_64.zip
+            artifacts/ParseableViewer-universal/ParseableViewer-universal.zip
 
       - name: Create release
         uses: softprops/action-gh-release@v2
