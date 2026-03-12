@@ -2,13 +2,25 @@ import XCTest
 @testable import ParseableViewer
 
 final class ConnectionStoreTests: XCTestCase {
+    /// Whether the data-protection keychain is available in this environment.
+    /// CI runners may lack the entitlements needed for `kSecUseDataProtectionKeychain`.
+    private static let keychainAvailable: Bool = {
+        let probe = "keychain-probe"
+        let saved = KeychainService.saveData(Data(probe.utf8), for: "_test_probe")
+        if saved {
+            KeychainService.deleteData(for: "_test_probe")
+        }
+        return saved
+    }()
+
     override func tearDown() {
         super.tearDown()
         KeychainService.deleteData(for: "parseable_connections_list")
         KeychainService.deleteData(for: "parseable_active_connection_id")
     }
 
-    func testSaveNilActiveConnectionID() {
+    func testSaveNilActiveConnectionID() throws {
+        try XCTSkipUnless(Self.keychainAvailable, "Data-protection keychain unavailable")
         let id = UUID()
         ConnectionStore.saveActiveConnectionID(id)
         ConnectionStore.saveActiveConnectionID(nil)
@@ -30,14 +42,16 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertTrue(connections.isEmpty)
     }
 
-    func testSaveAndLoadActiveConnectionID() {
+    func testSaveAndLoadActiveConnectionID() throws {
+        try XCTSkipUnless(Self.keychainAvailable, "Data-protection keychain unavailable")
         let id = UUID()
         ConnectionStore.saveActiveConnectionID(id)
         let loaded = ConnectionStore.loadActiveConnectionID()
         XCTAssertEqual(loaded, id)
     }
 
-    func testRoundTripConnectionPersistence() {
+    func testRoundTripConnectionPersistence() throws {
+        try XCTSkipUnless(Self.keychainAvailable, "Data-protection keychain unavailable")
         let conn = ServerConnection(
             name: "Prod",
             url: "https://logs.example.com",
@@ -58,7 +72,8 @@ final class ConnectionStoreTests: XCTestCase {
         KeychainService.deletePassword(for: conn.id)
     }
 
-    func testRoundTripMultipleConnections() {
+    func testRoundTripMultipleConnections() throws {
+        try XCTSkipUnless(Self.keychainAvailable, "Data-protection keychain unavailable")
         let conn1 = ServerConnection(
             name: "Server A",
             url: "https://a.example.com",
@@ -88,7 +103,8 @@ final class ConnectionStoreTests: XCTestCase {
         KeychainService.deletePassword(for: conn2.id)
     }
 
-    func testPasswordNotInKeychainConnectionData() {
+    func testPasswordNotInKeychainConnectionData() throws {
+        try XCTSkipUnless(Self.keychainAvailable, "Data-protection keychain unavailable")
         let connection = ServerConnection(
             name: "Test",
             url: "https://example.com",
