@@ -293,7 +293,6 @@
 				};
 			};
 			buildConfigurationList = 91629F84D63DA522312E65D6 /* Build configuration list for PBXProject "ParseableViewer" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -303,6 +302,7 @@
 			mainGroup = D06ED124AC4DFCB31F6EF0C1;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
+			productRefGroup = D37830AB19DD594BCD2B5499 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (

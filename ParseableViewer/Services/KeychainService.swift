@@ -87,9 +87,6 @@ enum KeychainService {
 
     // MARK: - Base queries
 
-    /// Base query targeting the data-protection keychain.
-    /// Items stored here are scoped by bundle identifier rather than by
-    /// code-signing identity, so they survive ad-hoc re-signing across builds.
     private static func baseQuery(for connectionID: UUID) -> [String: Any] {
         baseQuery(for: connectionID.uuidString)
     }
@@ -98,8 +95,7 @@ enum KeychainService {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecUseDataProtectionKeychain as String: true
+            kSecAttrAccount as String: account
         ]
     }
 }
