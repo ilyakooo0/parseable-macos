@@ -4,6 +4,7 @@ struct LogDetailView: View {
     let record: LogRecord
     @State private var viewMode: ViewMode = .formatted
     @State private var showCopyConfirmation = false
+    @State private var copyConfirmationTask: Task<Void, Never>?
 
     enum ViewMode: String, CaseIterable {
         case formatted = "Formatted"
@@ -61,8 +62,12 @@ struct LogDetailView: View {
             guard success else { return }
 
             showCopyConfirmation = true
-            Task {
+            // Cancel any in-flight timer so a rapid re-copy doesn't let an
+            // earlier task clear the checkmark while a newer copy is active.
+            copyConfirmationTask?.cancel()
+            copyConfirmationTask = Task {
                 try? await Task.sleep(for: .seconds(1.5))
+                guard !Task.isCancelled else { return }
                 showCopyConfirmation = false
             }
         }

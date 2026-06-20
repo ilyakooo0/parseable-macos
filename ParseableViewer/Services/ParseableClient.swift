@@ -136,11 +136,18 @@ final class ParseableClient: Sendable {
     }
 
     private func buildRequest(method: String, path: String, body: Data? = nil, queryItems: [URLQueryItem]? = nil) throws -> URLRequest {
-        var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)
-        if let queryItems {
-            components?.queryItems = queryItems
+        // `path` already contains percent-encoded dynamic segments (see
+        // `encodePathComponent`). Append it via `percentEncodedPath` rather than
+        // `URL.appendingPathComponent`, which would re-encode the `%` characters
+        // and corrupt names containing spaces or other reserved characters.
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            throw ParseableError.invalidURL
         }
-        guard let url = components?.url else {
+        components.percentEncodedPath += path
+        if let queryItems {
+            components.queryItems = queryItems
+        }
+        guard let url = components.url else {
             throw ParseableError.invalidURL
         }
 

@@ -59,7 +59,10 @@ struct SQLEditorView: NSViewRepresentable {
             let selectedRanges = textView.selectedRanges
             textView.string = text
             context.coordinator.applyHighlighting(to: textView)
-            let validRanges = selectedRanges.filter { NSMaxRange($0.rangeValue) <= textView.string.count }
+            // NSRange is UTF-16 based; compare against the NSString length, not
+            // String.count (grapheme count), or wide characters drop the selection.
+            let length = (textView.string as NSString).length
+            let validRanges = selectedRanges.filter { NSMaxRange($0.rangeValue) <= length }
             if !validRanges.isEmpty {
                 textView.selectedRanges = validRanges
             }
@@ -69,6 +72,10 @@ struct SQLEditorView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text, streamNames: streamNames, schemaFields: schemaFields)
+    }
+
+    static func dismantleNSView(_ nsView: NSScrollView, coordinator: Coordinator) {
+        coordinator.cleanup()
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
@@ -155,10 +162,20 @@ struct SQLEditorView: NSViewRepresentable {
 
             completionPopup.update(items: result.items)
 
-            if !completionPopup.isVisible, let window = textView.window {
+            if let window = textView.window {
                 let screenPoint = cursorScreenPoint(for: textView)
-                completionPopup.show(at: screenPoint, in: window)
+                if completionPopup.isVisible {
+                    completionPopup.reposition(at: screenPoint)
+                } else {
+                    completionPopup.show(at: screenPoint, in: window)
+                }
             }
+        }
+
+        /// Hides the completion popup when the editor is torn down so the
+        /// borderless child window can't linger after the view disappears.
+        func cleanup() {
+            completionPopup.hide()
         }
 
         private func insertCompletion(_ item: SQLCompletionItem) {

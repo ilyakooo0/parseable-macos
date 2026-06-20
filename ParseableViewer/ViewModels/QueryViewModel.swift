@@ -538,23 +538,40 @@ final class QueryViewModel {
         var sql = sqlQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         if sql.isEmpty { return }
 
-        let wherePattern = #"(?i)\bWHERE\b"#
-        let tailPattern = #"(?i)\b(ORDER\s+BY|GROUP\s+BY|HAVING|LIMIT)\b"#
+        // Locate the top-level WHERE and the first trailing clause using the
+        // tokenizer rather than a raw regex, so keywords inside quoted
+        // identifiers, string literals, comments, or subqueries are ignored.
+        let tailKeywords: Set<String> = ["ORDER", "GROUP", "HAVING", "LIMIT", "OFFSET"]
+        var depth = 0
+        var whereEnd: String.Index?
+        var tailStart: String.Index?
+        for token in SQLTokenizer.tokenize(sql) {
+            switch token.kind {
+            case .leftParen:
+                depth += 1
+            case .rightParen:
+                depth = max(0, depth - 1)
+            case .keyword(let kw) where depth == 0:
+                if kw == "WHERE", whereEnd == nil {
+                    whereEnd = token.range.upperBound
+                } else if tailKeywords.contains(kw), tailStart == nil {
+                    tailStart = token.range.lowerBound
+                }
+            default:
+                break
+            }
+        }
 
-        if let whereRange = sql.range(of: wherePattern, options: .regularExpression) {
-            let afterWhere = whereRange.upperBound
-            let searchRange = afterWhere..<sql.endIndex
-            if let tailRange = sql.range(of: tailPattern, options: .regularExpression, range: searchRange) {
-                sql.insert(contentsOf: "AND \(condition) ", at: tailRange.lowerBound)
+        if let whereEnd {
+            if let tailStart, tailStart > whereEnd {
+                sql.insert(contentsOf: "AND \(condition) ", at: tailStart)
             } else {
                 sql += " AND \(condition)"
             }
+        } else if let tailStart {
+            sql.insert(contentsOf: "WHERE \(condition) ", at: tailStart)
         } else {
-            if let tailRange = sql.range(of: tailPattern, options: .regularExpression) {
-                sql.insert(contentsOf: "WHERE \(condition) ", at: tailRange.lowerBound)
-            } else {
-                sql += " WHERE \(condition)"
-            }
+            sql += " WHERE \(condition)"
         }
 
         sqlQuery = sql

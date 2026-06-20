@@ -301,12 +301,27 @@ struct LogTableView: View {
             guard !Task.isCancelled else { return }
             cachedSorted = indexed
             severityColumnSet = sevCols
-            if let selectedRecord,
-               let match = cachedSorted.first(where: { $0.record == selectedRecord }) {
-                selectedIndex = match.id
-            } else {
-                selectedIndex = nil
-            }
+            reconcileSelection()
+        }
+    }
+
+    /// Re-establishes the current selection after `cachedSorted` is rebuilt.
+    /// Prefers the stable row id so a plain re-sort keeps the exact selected row
+    /// (rather than jumping to the first duplicate). Falls back to value matching
+    /// only when the records themselves changed, and clears both the index and
+    /// the bound record when nothing matches so the detail pane can't go stale.
+    private func reconcileSelection() {
+        if let selectedIndex,
+           let match = cachedSorted.first(where: { $0.id == selectedIndex }),
+           match.record == selectedRecord {
+            return
+        }
+        if let selectedRecord,
+           let match = cachedSorted.first(where: { $0.record == selectedRecord }) {
+            selectedIndex = match.id
+        } else {
+            selectedIndex = nil
+            self.selectedRecord = nil
         }
     }
 
@@ -327,12 +342,7 @@ struct LogTableView: View {
             IndexedRecord(id: $0.offset, record: $0.element, severity: extractSeverity(from: $0.element, severityColumns: sevCols))
         }
         severityColumnSet = sevCols
-        if let selectedRecord,
-           let match = cachedSorted.first(where: { $0.record == selectedRecord }) {
-            selectedIndex = match.id
-        } else {
-            selectedIndex = nil
-        }
+        reconcileSelection()
     }
 }
 

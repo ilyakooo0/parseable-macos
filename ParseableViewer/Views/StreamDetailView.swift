@@ -206,7 +206,11 @@ struct StreamDetailView: View {
         do { info = try await infoFetch } catch { info = nil; failures.append("info"); checkNotFound(error) }
         do { retention = try await retentionFetch } catch { retention = []; failures.append("retention"); checkNotFound(error) }
 
-        if sawNotFound && failures.count == 4 {
+        // A deleted stream makes these endpoints 404. Requiring *all four* to
+        // fail was too strict (e.g. retention can succeed with an empty result),
+        // so a deleted stream often fell through to the generic message. Treat
+        // a 404 alongside multiple failures as "stream gone".
+        if sawNotFound && failures.count >= 2 {
             errorMessage = "Stream \"\(stream)\" was not found. It may have been deleted."
         } else if !failures.isEmpty {
             errorMessage = "Failed to load: \(failures.joined(separator: ", "))"

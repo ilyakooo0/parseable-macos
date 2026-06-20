@@ -45,10 +45,15 @@ struct AlertRule: Identifiable, Codable, Sendable {
     let rule: AlertRuleSpec?
     let targets: [AlertTarget]?
 
+    /// Stable fallback identity for alerts that carry no id/name/title.
+    /// Generated once at init so `id` doesn't change on every access (which
+    /// would make SwiftUI tear down and rebuild list rows continuously).
+    private let localID = UUID()
+
     /// Display name, preferring the modern `title` field over legacy `name`.
     var displayName: String { title ?? name ?? "Unnamed Alert" }
 
-    var id: String { alertId ?? name ?? title ?? UUID().uuidString }
+    var id: String { alertId ?? name ?? title ?? localID.uuidString }
 
     private enum CodingKeys: String, CodingKey {
         case alertId = "id"

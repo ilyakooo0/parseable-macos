@@ -52,7 +52,7 @@ struct ServerInfoView: View {
                     .padding(8)
                 }
 
-                if let about = about ?? appState.serverAbout {
+                if let about {
                     GroupBox("Server Details") {
                         VStack(alignment: .leading, spacing: 8) {
                             InfoRow(label: "Version", value: about.version ?? "N/A")
@@ -132,6 +132,9 @@ struct ServerInfoView: View {
         guard let client = appState.client else { return }
         isLoading = true
         errorMessage = nil
+        // Seed from the app-wide cache so first load isn't blank, but never fall
+        // back to it on refresh failure (that would show stale data under the error).
+        if about == nil { about = appState.serverAbout }
 
         async let healthCheck: Void = client.checkHealth()
         async let aboutResult = client.getAbout()

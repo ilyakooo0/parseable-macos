@@ -339,6 +339,17 @@ final class SQLCompletionPopup: NSObject, NSTableViewDataSource, NSTableViewDele
         panel.orderFront(nil)
     }
 
+    /// Moves an already-visible popup so it stays anchored to the caret as the
+    /// user keeps typing (otherwise it lingers at its original position).
+    func reposition(at screenPoint: NSPoint) {
+        guard panel.isVisible else { return }
+        let rowCount = min(items.count, Self.maxVisibleRows)
+        let height = CGFloat(rowCount) * Self.rowHeight + 4
+        let frame = NSRect(x: screenPoint.x, y: screenPoint.y - height,
+                           width: Self.panelWidth, height: height)
+        panel.setFrame(frame, display: true)
+    }
+
     func hide() {
         panel.parent?.removeChildWindow(panel)
         panel.orderOut(nil)

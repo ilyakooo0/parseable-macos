@@ -288,7 +288,7 @@ struct FilterRow: View {
         } label: {
             HStack {
                 Image(systemName: "bookmark")
-                    .foregroundStyle(streamExists ? .orange : .secondary)
+                    .foregroundStyle(streamExists ? Color.secondary : Color.orange)
                 VStack(alignment: .leading) {
                     Text(filter.filterName)
                         .lineLimit(1)

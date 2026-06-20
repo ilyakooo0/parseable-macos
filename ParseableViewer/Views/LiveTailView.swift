@@ -12,7 +12,6 @@ struct LiveTailView: View {
     @State private var sortAscending = false
     @State private var columnWidths: [String: CGFloat] = [:]
     @State private var cachedSorted: [LiveTailViewModel.LiveTailEntry] = []
-    @State private var cachedSeverities: [SeverityLevel] = []
     @State private var severityColumnSet: Set<String> = []
     @State private var liveTailSortTask: Task<Void, Never>?
 
@@ -284,7 +283,6 @@ struct LiveTailView: View {
         let sevCols = buildSeverityColumnSet(columns: cols)
         guard let col = sortColumn else {
             cachedSorted = entries
-            cachedSeverities = entries.map { extractSeverity(from: $0.record, severityColumns: sevCols) }
             severityColumnSet = sevCols
             return
         }
@@ -302,7 +300,6 @@ struct LiveTailView: View {
             }.value
             guard !Task.isCancelled else { return }
             cachedSorted = sorted
-            cachedSeverities = sorted.map { extractSeverity(from: $0.record, severityColumns: sevCols) }
             severityColumnSet = sevCols
         }
     }
@@ -319,7 +316,7 @@ struct LiveTailView: View {
                                 columnWidths: columnWidths,
                                 isSelected: selectedRecord == entry.record,
                                 isAlternate: index % 2 == 1,
-                                severity: index < cachedSeverities.count ? cachedSeverities[index] : .unknown,
+                                severity: extractSeverity(from: entry.record, severityColumns: severityColumnSet),
                                 severityColumns: severityColumnSet,
                                 wrapText: wrapText,
                                 onCellFilter: { column, value, exclude in
@@ -360,13 +357,12 @@ struct LiveTailView: View {
             .onChange(of: sortAscending) { _, _ in
                 rebuildSortedEntries()
             }
-            .onChange(of: viewModel.entries.count) { _, _ in
+            // Scroll when the rendered list (`cachedSorted`) changes, targeting
+            // its last element. Keying off `entries.count` could fire before the
+            // rebuild, scrolling to an id not yet present (a silent no-op).
+            .onChange(of: cachedSorted.count) { _, _ in
                 guard autoScroll, sortColumn == nil else { return }
-                let hasFilters = !viewModel.filterText.isEmpty || !viewModel.columnFilters.isEmpty
-                let target = hasFilters
-                    ? viewModel.cachedFilteredEntries.last
-                    : viewModel.entries.last
-                if let target {
+                if let target = cachedSorted.last {
                     proxy.scrollTo(target.id, anchor: .bottom)
                 }
             }
