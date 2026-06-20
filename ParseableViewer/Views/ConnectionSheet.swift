@@ -49,6 +49,8 @@ struct ConnectionSheet: View {
                     .accessibilityLabel("Server URL")
                     .onChange(of: url) { _, newValue in
                         urlValidationError = Self.validateURL(newValue)
+                        // A prior test result no longer reflects the edited fields.
+                        testResult = nil
                     }
 
                 if let urlError = urlValidationError, !url.isEmpty {
@@ -60,10 +62,12 @@ struct ConnectionSheet: View {
                 TextField("Username:", text: $username)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel("Username")
+                    .onChange(of: username) { _, _ in testResult = nil }
 
                 SecureField("Password:", text: $password)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel("Password")
+                    .onChange(of: password) { _, _ in testResult = nil }
             }
             .formStyle(.grouped)
             .padding()

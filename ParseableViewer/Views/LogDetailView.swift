@@ -205,6 +205,10 @@ struct RawJSONView: View {
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: record) {
+            // Drop the previous record's highlight first so we fall back to the
+            // new record's plain text while the new highlight computes, instead
+            // of briefly showing the old record's highlighted JSON.
+            highlightedText = nil
             let json = JSONValue.object(record).prettyPrinted()
             highlightedText = JSONSyntaxHighlighter.highlight(json)
         }

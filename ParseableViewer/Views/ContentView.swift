@@ -10,21 +10,7 @@ struct ContentView: View {
             SidebarView()
         } detail: {
             if appState.isConnected {
-                if appState.selectedStream != nil {
-                    MainContentView()
-                } else {
-                    VStack(spacing: 12) {
-                        Image(systemName: "sidebar.left")
-                            .font(.system(size: 48))
-                            .foregroundStyle(.secondary)
-                        Text("Select a stream")
-                            .font(.title2)
-                            .foregroundStyle(.secondary)
-                        Text("Choose a log stream from the sidebar to get started.")
-                            .foregroundStyle(.tertiary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+                MainContentView()
             } else {
                 WelcomeView()
             }
@@ -66,28 +52,50 @@ struct MainContentView: View {
 
             Divider()
 
-            // Content — only the active tab is instantiated
-            switch appState.currentTab {
-            case .query:
-                QueryView()
-                    .id(AppState.AppTab.query)
-            case .liveTail:
-                LiveTailView()
-                    .id(AppState.AppTab.liveTail)
-            case .streamInfo:
-                StreamDetailView()
-                    .id(AppState.AppTab.streamInfo)
-            case .alerts:
-                AlertsView()
-                    .id(AppState.AppTab.alerts)
-            case .users:
-                UsersView()
-                    .id(AppState.AppTab.users)
-            case .serverInfo:
-                ServerInfoView()
-                    .id(AppState.AppTab.serverInfo)
+            // Content — only the active tab is instantiated. Stream-scoped tabs
+            // show a placeholder until a stream is selected; server-level tabs
+            // (Users, Server Info) render regardless.
+            if appState.currentTab.requiresStream && appState.selectedStream == nil {
+                SelectStreamPlaceholder()
+            } else {
+                switch appState.currentTab {
+                case .query:
+                    QueryView()
+                        .id(AppState.AppTab.query)
+                case .liveTail:
+                    LiveTailView()
+                        .id(AppState.AppTab.liveTail)
+                case .streamInfo:
+                    StreamDetailView()
+                        .id(AppState.AppTab.streamInfo)
+                case .alerts:
+                    AlertsView()
+                        .id(AppState.AppTab.alerts)
+                case .users:
+                    UsersView()
+                        .id(AppState.AppTab.users)
+                case .serverInfo:
+                    ServerInfoView()
+                        .id(AppState.AppTab.serverInfo)
+                }
             }
         }
+    }
+}
+
+struct SelectStreamPlaceholder: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "sidebar.left")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            Text("Select a stream")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+            Text("Choose a log stream from the sidebar to get started.")
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

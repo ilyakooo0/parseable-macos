@@ -14,7 +14,7 @@ final class AppState {
     private(set) var isNetworkAvailable = true
     private let networkMonitor = NWPathMonitor()
     private let networkMonitorQueue = DispatchQueue(label: "com.parseableviewer.network-monitor")
-    private var connectTask: Task<Void, Never>?
+    private var connectTask: Task<Bool, Never>?
 
     // MARK: - Stream State
     var streams: [LogStream] = []
@@ -62,6 +62,15 @@ final class AppState {
             case .serverInfo: return "server.rack"
             }
         }
+
+        /// Whether the tab's content is scoped to a selected stream. Server-level
+        /// tabs (Users, Server Info) stay reachable even with no stream selected.
+        var requiresStream: Bool {
+            switch self {
+            case .query, .liveTail, .streamInfo, .alerts: return true
+            case .users, .serverInfo: return false
+            }
+        }
     }
 
     var filteredStreams: [LogStream] {
@@ -87,8 +96,8 @@ final class AppState {
 
         if let activeID = ConnectionStore.loadActiveConnectionID(),
            let connection = connections.first(where: { $0.id == activeID }) {
-            connectTask = Task { @MainActor in
-                await connect(to: connection)
+            connectTask = Task { @MainActor [weak self] in
+                await self?.performConnect(to: connection) ?? false
             }
         }
     }
@@ -98,6 +107,23 @@ final class AppState {
     @MainActor
     @discardableResult
     func connect(to connection: ServerConnection) async -> Bool {
+        // Supersede any connect already in flight (e.g. the launch auto-reconnect
+        // or a prior request) instead of silently dropping this one — which would
+        // surface as a spurious "Connection failed". Cancel it and wait for it to
+        // unwind so two connects never run concurrently.
+        if let existing = connectTask {
+            existing.cancel()
+            _ = await existing.value
+        }
+        let task = Task { @MainActor [weak self] in
+            await self?.performConnect(to: connection) ?? false
+        }
+        connectTask = task
+        return await task.value
+    }
+
+    @MainActor
+    private func performConnect(to connection: ServerConnection) async -> Bool {
         guard !isConnecting else { return false }
 
         if !isNetworkAvailable {

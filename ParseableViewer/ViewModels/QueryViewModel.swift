@@ -3,7 +3,14 @@ import SwiftUI
 
 @Observable
 final class QueryViewModel {
-    var sqlQuery = ""
+    var sqlQuery = "" {
+        didSet {
+            // Editing the query invalidates any error underline, whose offsets
+            // were computed against the previous text. Clearing here keeps a
+            // late-arriving highlight from landing on the wrong position.
+            if sqlQuery != oldValue { errorRange = nil }
+        }
+    }
     var results: [LogRecord] = [] {
         didSet {
             // Show all results immediately
@@ -404,6 +411,12 @@ final class QueryViewModel {
                 }
                 results = []
                 columns = []
+                // Drop the previous query's column layout too, otherwise derived
+                // state like `visibleColumns` (and a CSV export reading it) would
+                // report stale column names after the failure.
+                columnOrder = []
+                hiddenColumns = []
+                autoHiddenColumns = []
             }
 
             isLoading = false

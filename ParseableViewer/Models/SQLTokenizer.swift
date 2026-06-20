@@ -302,7 +302,26 @@ struct SQLTokenizer: Sendable {
             i += 1
         }
 
-        let offset = i + (column - 1)
+        // Advance (column - 1) characters from the line start. `column` is a
+        // 1-based character position, so a surrogate pair (e.g. an emoji) counts
+        // as one character but two UTF-16 units; stepping char-by-char keeps the
+        // offset correct for non-BMP text. For all-ASCII/BMP lines this is
+        // identical to `i + (column - 1)`.
+        var offset = i
+        var remaining = column - 1
+        while remaining > 0 {
+            // Running out of characters means the column points past the end of
+            // the input — out of bounds, matching the original contract.
+            guard offset < length else { return nil }
+            let unit = nsString.character(at: offset)
+            if unit == 0x0A { break } // a column can't extend past the line's newline
+            if unit >= 0xD800 && unit <= 0xDBFF && offset + 1 < length {
+                offset += 2 // high surrogate: skip the trailing low surrogate too
+            } else {
+                offset += 1
+            }
+            remaining -= 1
+        }
         guard offset <= length else { return nil }
         return offset
     }
@@ -322,6 +341,14 @@ struct SQLTokenizer: Sendable {
                     for next in tokens[(idx + 1)...] {
                         if !next.kind.isTrivia {
                             return NSRange(next.range, in: sql)
+                        }
+                    }
+                    // No following real token (e.g. error reported at trailing
+                    // whitespace): snap back to the previous non-trivia token
+                    // instead of returning no highlight at all.
+                    for prev in tokens[..<idx].reversed() {
+                        if !prev.kind.isTrivia {
+                            return NSRange(prev.range, in: sql)
                         }
                     }
                     return nil

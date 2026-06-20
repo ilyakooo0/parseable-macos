@@ -293,7 +293,17 @@ struct LogTableView: View {
                 widthTask = Task.detached(priority: .userInitiated) {
                     let widths = computeColumnWidths(columns: cols, records: newRecords)
                     guard !Task.isCancelled else { return }
-                    await MainActor.run { columnWidths = widths }
+                    await MainActor.run {
+                        // Preserve any width the user dragged or auto-fit; only fill
+                        // in columns that don't have a width yet (e.g. newly appearing
+                        // columns). A wholesale overwrite would discard manual resizes
+                        // on every re-query/filter/refresh.
+                        var merged = columnWidths
+                        for (col, width) in widths where merged[col] == nil {
+                            merged[col] = width
+                        }
+                        columnWidths = merged
+                    }
                 }
                 debouncedRebuildSort()
             }

@@ -231,27 +231,39 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
         return a < b
     }
 
-    /// Exact `Int < Double` comparison that avoids the precision loss of
-    /// `Double(Int)` for magnitudes beyond 2^53. NaN sorts after all numbers.
+    /// Exact three-way comparison of an `Int` against a `Double` with no
+    /// precision loss. Returns a negative value if `a < b`, zero if they are
+    /// numerically equal, and a positive value if `a > b`. `NaN` sorts after all
+    /// numbers (so any int compares as less than `NaN`).
+    ///
+    /// Comparing via `Double(a)` loses precision for `|a| > 2^53`, and
+    /// `Int(exactly: b)` is `nil` once `b` falls outside the `Int` range — the
+    /// previous helpers fell back to the lossy path there, which made `<`, `>`,
+    /// and `==` mutually inconsistent at the 2^63 boundary (e.g. `Int.max` vs
+    /// `Double(Int.max)`, which rounds up to 2^63). This range-checks `b` first
+    /// so the integer parts are always compared exactly.
+    private static func compareIntDouble(_ a: Int, _ b: Double) -> Int {
+        if b.isNaN { return -1 }                        // NaN sorts after numbers
+        if b >= 9223372036854775808.0 { return -1 }     // b > Int.max (incl. +inf)
+        if b < -9223372036854775808.0 { return 1 }      // b < Int.min (incl. -inf)
+        // b is finite and its floor fits in Int.
+        let bFloor = Int(b.rounded(.down))
+        if a != bFloor { return a < bFloor ? -1 : 1 }
+        // Integer parts are equal: a fractional b is the larger of the two.
+        return b > Double(bFloor) ? -1 : 0
+    }
+
     private static func intLessThanDouble(_ a: Int, _ b: Double) -> Bool {
-        if b.isNaN { return true }
-        if let bi = Int(exactly: b) { return a < bi }   // b is a whole, in-range number
-        return Double(a) < b                            // b is fractional / infinite / out of range
+        compareIntDouble(a, b) < 0
     }
 
-    /// Exact `Double < Int` comparison, the mirror of `intLessThanDouble`.
-    /// NaN sorts after all numbers, so `NaN < anyInt` is false.
     private static func doubleLessThanInt(_ a: Double, _ b: Int) -> Bool {
-        if a.isNaN { return false }
-        if let ai = Int(exactly: a) { return ai < b }   // a is a whole, in-range number
-        return a < Double(b)                            // a is fractional / infinite / out of range
+        // a < b  ⟺  b > a  ⟺  compareIntDouble(b, a) is positive.
+        compareIntDouble(b, a) > 0
     }
 
-    /// Exact `Int == Double` test (true only when the double represents exactly
-    /// the same integer — `Int(exactly:)` is nil for fractional/out-of-range b).
     private static func intEqualsDouble(_ a: Int, _ b: Double) -> Bool {
-        if let bi = Int(exactly: b) { return a == bi }
-        return false
+        compareIntDouble(a, b) == 0
     }
 
     /// JSON-safe rendering of a double: JSON has no NaN/Infinity literals, so

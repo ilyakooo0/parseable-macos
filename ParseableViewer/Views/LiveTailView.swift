@@ -272,12 +272,12 @@ struct LiveTailView: View {
             columnWidths = [:]
             cachedSorted = []
         }
-        .onChange(of: viewModel.visibleColumns) { _, newColumns in
-            // Compute widths for any newly visible columns
-            let records = viewModel.cachedFilteredRecords
-            for col in newColumns where columnWidths[col] == nil {
-                columnWidths[col] = idealColumnWidth(for: col, records: records)
-            }
+        .onChange(of: viewModel.visibleColumns) { _, _ in
+            // Showing/hiding a column changes the severity column set, so rebuild
+            // (which also fills in widths for any newly visible columns). A
+            // width-only update would leave row severity tinting stale until the
+            // next poll.
+            rebuildSortedEntries()
         }
         .onAppear {
             rebuildSortedEntries()

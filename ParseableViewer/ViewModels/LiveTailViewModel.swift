@@ -21,6 +21,12 @@ final class LiveTailViewModel {
     var columns: [String] = []
     var columnOrder: [String] = []
     var hiddenColumns: Set<String> = []
+    /// The full persisted set of hidden columns, including ones not yet seen in
+    /// this session. Live-tail columns are discovered incrementally across polls,
+    /// so `hiddenColumns` (only the seen ones) can't be the source of truth — a
+    /// column hidden last session would reappear visible when it shows up in a
+    /// later poll. This retains the intent so it stays hidden when it appears.
+    private var savedHiddenColumns: Set<String> = []
     private var currentStream: String?
 
     // nonisolated(unsafe) so deinit can invalidate the timer.
@@ -37,6 +43,11 @@ final class LiveTailViewModel {
     private var allKnownKeys: Set<String> = []
     private var consecutiveErrors = 0
     private static let maxConsecutiveErrors = 5
+    /// Guards against overlapping polls: if a poll's network round-trip outlasts
+    /// the timer interval, the next tick must not start a second concurrent poll
+    /// (which would let the two interleave and write `lastTimestamp` /
+    /// `consecutiveErrors` out of order).
+    private var isPolling = false
 
     deinit {
         timer?.invalidate()
@@ -170,6 +181,7 @@ final class LiveTailViewModel {
         columns = []
         columnOrder = []
         hiddenColumns = []
+        savedHiddenColumns = []
         columnFilters = []
         currentStream = stream
         rebuildFilteredEntries()
@@ -201,6 +213,7 @@ final class LiveTailViewModel {
         columns = []
         columnOrder = []
         hiddenColumns = []
+        savedHiddenColumns = []
         columnFilters = []
         rebuildFilteredEntries()
     }
@@ -214,10 +227,12 @@ final class LiveTailViewModel {
     func toggleColumnVisibility(_ column: String) {
         if hiddenColumns.contains(column) {
             hiddenColumns.remove(column)
+            savedHiddenColumns.remove(column)
         } else {
             let visibleCount = columnOrder.count - hiddenColumns.count
             if visibleCount > 1 {
                 hiddenColumns.insert(column)
+                savedHiddenColumns.insert(column)
             }
         }
         saveColumnConfig()
@@ -225,6 +240,7 @@ final class LiveTailViewModel {
 
     func showAllColumns() {
         hiddenColumns.removeAll()
+        savedHiddenColumns.removeAll()
         saveColumnConfig()
     }
 
@@ -245,6 +261,7 @@ final class LiveTailViewModel {
     func resetColumnConfig() {
         columnOrder = columns
         hiddenColumns.removeAll()
+        savedHiddenColumns.removeAll()
         saveColumnConfig()
     }
 
@@ -256,7 +273,9 @@ final class LiveTailViewModel {
 
     private func saveColumnConfig() {
         guard let stream = currentStream else { return }
-        let config = QueryViewModel.ColumnConfiguration(order: columnOrder, hidden: hiddenColumns)
+        // Persist the full intended hidden set (including columns not yet seen
+        // this session) so it survives across restarts and incremental discovery.
+        let config = QueryViewModel.ColumnConfiguration(order: columnOrder, hidden: savedHiddenColumns)
         if let data = try? JSONEncoder().encode(config) {
             UserDefaults.standard.set(data, forKey: Self.columnConfigKey(for: stream))
         }
@@ -298,9 +317,11 @@ final class LiveTailViewModel {
                     merged.append(col)
                 }
                 columnOrder = merged
+                savedHiddenColumns = config.hidden
                 hiddenColumns = config.hidden.intersection(extractedSet)
             } else {
                 columnOrder = extracted
+                savedHiddenColumns = []
                 hiddenColumns = []
             }
         } else {
@@ -313,11 +334,18 @@ final class LiveTailViewModel {
             if !newCols.isEmpty {
                 columns.append(contentsOf: newCols)
                 columnOrder.append(contentsOf: newCols)
+                // Re-hide any newly appearing column that was hidden in a prior
+                // session but hadn't been seen yet this run.
+                hiddenColumns.formUnion(newCols.filter { savedHiddenColumns.contains($0) })
             }
         }
     }
 
     private func poll(client: ParseableClient, stream: String) async {
+        guard !isPolling else { return }
+        isPolling = true
+        defer { isPolling = false }
+
         let now = Date()
         // The Parseable server truncates query time-ranges to minute
         // boundaries, so a narrow window (< 60 s) can collapse to a
