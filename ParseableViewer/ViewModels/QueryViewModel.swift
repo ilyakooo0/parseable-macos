@@ -286,8 +286,22 @@ final class QueryViewModel {
             filteredResults = results
         } else {
             let text = filterText
-            filteredResults = zip(results, cachedSearchTexts).compactMap { record, searchText in
-                searchText.localizedCaseInsensitiveContains(text) ? record : nil
+            // The search-text cache is built asynchronously, so it may be empty
+            // or stale when the filter changes. `zip` would silently truncate to
+            // the shorter sequence and drop matching rows, so only use the cache
+            // when it lines up with the current results; otherwise compute the
+            // search text inline for correctness.
+            if cachedSearchTexts.count == results.count {
+                filteredResults = zip(results, cachedSearchTexts).compactMap { record, searchText in
+                    searchText.localizedCaseInsensitiveContains(text) ? record : nil
+                }
+            } else {
+                filteredResults = results.filter { record in
+                    record.values
+                        .map { $0.displayString }
+                        .joined(separator: " ")
+                        .localizedCaseInsensitiveContains(text)
+                }
             }
         }
     }
@@ -617,6 +631,7 @@ final class QueryViewModel {
 
     func clearHistory() {
         queryHistory = []
+        historyIsFull = false
         Self.saveHistory([])
     }
 

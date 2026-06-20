@@ -12,12 +12,15 @@ final class ConnectionStore {
     }
 
     static func saveConnections(_ connections: [ServerConnection]) {
-        for connection in connections {
-            if !connection.password.isEmpty {
-                KeychainService.savePassword(connection.password, for: connection.id)
-            } else {
-                KeychainService.deletePassword(for: connection.id)
-            }
+        for connection in connections where !connection.password.isEmpty {
+            // Only upsert non-empty passwords. We must NOT delete on an empty
+            // password here: `ServerConnection.init(from:)` decodes the password
+            // as "" whenever the Keychain read transiently fails (locked
+            // Keychain, errSecInteractionNotAllowed, etc.), so deleting on empty
+            // would promote a transient read failure into permanent credential
+            // loss on the next save. Credentials are removed only when the
+            // connection itself is removed, via `deleteConnection`.
+            KeychainService.savePassword(connection.password, for: connection.id)
         }
         if let data = try? JSONEncoder().encode(connections) {
             KeychainService.saveData(data, for: keychainConnectionsKey)

@@ -13,6 +13,9 @@ struct LiveTailView: View {
     @State private var columnWidths: [String: CGFloat] = [:]
     @State private var cachedSorted: [LiveTailViewModel.LiveTailEntry] = []
     @State private var severityColumnSet: Set<String> = []
+    /// Severity per entry id, precomputed on rebuild so it isn't recomputed for
+    /// every visible row on each scroll/render.
+    @State private var severityByID: [UUID: SeverityLevel] = [:]
     @State private var liveTailSortTask: Task<Void, Never>?
 
     var body: some View {
@@ -277,13 +280,32 @@ struct LiveTailView: View {
         }
     }
 
+    /// Computes widths for any visible columns that don't have one yet. Covers
+    /// the case where switching to a stream with an identical column set doesn't
+    /// fire `onChange(of: visibleColumns)`, which would otherwise leave widths
+    /// empty (falling back to the default width) after `selectedStream` cleared
+    /// them.
+    private func ensureColumnWidths() {
+        let records = viewModel.cachedFilteredRecords
+        for col in viewModel.visibleColumns where columnWidths[col] == nil {
+            columnWidths[col] = idealColumnWidth(for: col, records: records)
+        }
+    }
+
     private func rebuildSortedEntries() {
+        ensureColumnWidths()
         let entries = viewModel.cachedFilteredEntries
         let cols = viewModel.visibleColumns
         let sevCols = buildSeverityColumnSet(columns: cols)
+        // Precompute severity per entry; sorting doesn't change the set.
+        let severityMap = Dictionary(
+            entries.map { ($0.id, extractSeverity(from: $0.record, severityColumns: sevCols)) },
+            uniquingKeysWith: { first, _ in first }
+        )
         guard let col = sortColumn else {
             cachedSorted = entries
             severityColumnSet = sevCols
+            severityByID = severityMap
             return
         }
         liveTailSortTask?.cancel()
@@ -301,6 +323,7 @@ struct LiveTailView: View {
             guard !Task.isCancelled else { return }
             cachedSorted = sorted
             severityColumnSet = sevCols
+            severityByID = severityMap
         }
     }
 
@@ -316,7 +339,7 @@ struct LiveTailView: View {
                                 columnWidths: columnWidths,
                                 isSelected: selectedRecord == entry.record,
                                 isAlternate: index % 2 == 1,
-                                severity: extractSeverity(from: entry.record, severityColumns: severityColumnSet),
+                                severity: severityByID[entry.id] ?? .unknown,
                                 severityColumns: severityColumnSet,
                                 wrapText: wrapText,
                                 onCellFilter: { column, value, exclude in

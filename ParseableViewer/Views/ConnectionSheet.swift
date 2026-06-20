@@ -14,6 +14,10 @@ struct ConnectionSheet: View {
     @State private var isSaving = false
     @State private var testResult: TestResult?
     @State private var urlValidationError: String?
+    /// For a new connection, holds the connection created on the first save so a
+    /// retry (after a failed connect) updates it in place rather than appending a
+    /// duplicate.
+    @State private var createdConnection: ServerConnection?
 
     enum TestResult {
         case success(String)
@@ -160,12 +164,13 @@ struct ConnectionSheet: View {
         guard !isSaving else { return }
 
         let conn: ServerConnection
-        if let existing = connection {
+        if let existing = connection ?? createdConnection {
             conn = ServerConnection(id: existing.id, name: name, url: url, username: username, password: password)
             appState.updateConnection(conn)
         } else {
             conn = ServerConnection(name: name, url: url, username: username, password: password)
             appState.addConnection(conn)
+            createdConnection = conn
         }
 
         isSaving = true

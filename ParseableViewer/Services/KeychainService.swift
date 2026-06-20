@@ -8,17 +8,8 @@ enum KeychainService {
 
     @discardableResult
     static func savePassword(_ password: String, for connectionID: UUID) -> Bool {
-        let account = connectionID.uuidString
-        deletePassword(for: connectionID)
-
         guard let data = password.data(using: .utf8) else { return false }
-        var query = baseQuery(for: connectionID)
-        query[kSecValueData as String] = data
-        let status = SecItemAdd(query as CFDictionary, nil)
-        if status != errSecSuccess {
-            logger.error("Failed to save password for \(account): OSStatus \(status)")
-        }
-        return status == errSecSuccess
+        return upsert(data, query: baseQuery(for: connectionID), label: connectionID.uuidString)
     }
 
     static func loadPassword(for connectionID: UUID) -> String? {
@@ -51,14 +42,7 @@ enum KeychainService {
 
     @discardableResult
     static func saveData(_ data: Data, for key: String) -> Bool {
-        deleteData(for: key)
-        var query = baseQuery(for: key)
-        query[kSecValueData as String] = data
-        let status = SecItemAdd(query as CFDictionary, nil)
-        if status != errSecSuccess {
-            logger.error("Failed to save data for \(key): OSStatus \(status)")
-        }
-        return status == errSecSuccess
+        upsert(data, query: baseQuery(for: key), label: key)
     }
 
     static func loadData(for key: String) -> Data? {
@@ -83,6 +67,32 @@ enum KeychainService {
             logger.error("Failed to delete data for \(key): OSStatus \(status)")
         }
         return status == errSecSuccess || status == errSecItemNotFound
+    }
+
+    // MARK: - Upsert
+
+    /// Atomically stores `data` for the given query: tries `SecItemAdd` and,
+    /// if the item already exists, falls back to `SecItemUpdate`. This avoids
+    /// the delete-then-add race that could drop a write (and silently return
+    /// `errSecDuplicateItem`) when two saves overlap.
+    @discardableResult
+    private static func upsert(_ data: Data, query: [String: Any], label: String) -> Bool {
+        var addQuery = query
+        addQuery[kSecValueData as String] = data
+        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        if addStatus == errSecSuccess {
+            return true
+        }
+        if addStatus == errSecDuplicateItem {
+            let attributes = [kSecValueData as String: data]
+            let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+            if updateStatus != errSecSuccess {
+                logger.error("Failed to update item for \(label): OSStatus \(updateStatus)")
+            }
+            return updateStatus == errSecSuccess
+        }
+        logger.error("Failed to save item for \(label): OSStatus \(addStatus)")
+        return false
     }
 
     // MARK: - Base queries

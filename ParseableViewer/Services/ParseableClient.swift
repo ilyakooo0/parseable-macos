@@ -288,9 +288,16 @@ final class ParseableClient: Sendable {
             return []
         }
 
-        // Peek at the first non-whitespace byte to choose the decoder path:
-        // '{' → wrapped response, '[' → direct array.
-        let firstByte = responseData.first(where: { $0 != 0x20 && $0 != 0x0A && $0 != 0x0D && $0 != 0x09 })
+        // Peek at the first meaningful byte to choose the decoder path:
+        // '{' → wrapped response, '[' → direct array. Skip a leading UTF-8 BOM
+        // (0xEF 0xBB 0xBF) and ASCII whitespace so a BOM-prefixed wrapped
+        // response isn't misrouted to the array decoder. (JSONDecoder itself
+        // tolerates the BOM.)
+        var sniff = responseData
+        if sniff.starts(with: [0xEF, 0xBB, 0xBF]) {
+            sniff = sniff.dropFirst(3)
+        }
+        let firstByte = sniff.first(where: { $0 != 0x20 && $0 != 0x0A && $0 != 0x0D && $0 != 0x09 })
         if firstByte == 0x7B { // '{'
             do {
                 return try Self.jsonDecoder.decode(QueryResponse.self, from: responseData).records

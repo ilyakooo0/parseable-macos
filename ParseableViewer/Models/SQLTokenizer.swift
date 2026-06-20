@@ -256,7 +256,17 @@ struct SQLTokenizer: Sendable {
     }
 
     private static func consumeNumber(_ i: inout String.Index, in sql: String) {
-        advance(&i, in: sql, while: { $0.isNumber || $0 == "." })
+        // Digits with at most one decimal point, so malformed input like
+        // `1.2.3` doesn't get swallowed into a single number token.
+        var seenDot = false
+        advance(&i, in: sql, while: { c in
+            if c == "." {
+                if seenDot { return false }
+                seenDot = true
+                return true
+            }
+            return c.isNumber
+        })
         // Exponent
         if i < sql.endIndex, sql[i] == "e" || sql[i] == "E" {
             sql.formIndex(after: &i)

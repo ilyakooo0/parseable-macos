@@ -37,6 +37,22 @@ struct ServerConnection: Identifiable, Codable, Hashable, Sendable {
         try container.encode(username, forKey: .username)
     }
 
+    // `password` is deliberately excluded from equality and hashing: it isn't
+    // serialized (see CodingKeys) and is repopulated from the Keychain on
+    // decode, so including it would make a decoded connection compare unequal
+    // to the in-memory original whenever the Keychain read returns "" — e.g. in
+    // Set membership or "has this connection changed?" checks.
+    static func == (lhs: ServerConnection, rhs: ServerConnection) -> Bool {
+        lhs.id == rhs.id
+            && lhs.name == rhs.name
+            && lhs.url == rhs.url
+            && lhs.username == rhs.username
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
     var baseURL: URL? {
         var urlString = url.trimmingCharacters(in: .whitespacesAndNewlines)
         if urlString.isEmpty { return nil }

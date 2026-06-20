@@ -259,6 +259,15 @@ struct LogTableView: View {
                 }
                 debouncedRebuildSort()
             }
+            .onChange(of: columns) { _, newColumns in
+                // After a stream switch the previous sort column may not exist
+                // in the new schema, which would silently produce a no-op sort
+                // (every row compares as .null). Drop it so rows fall back to
+                // their natural order.
+                if let sortColumn, !newColumns.contains(sortColumn) {
+                    self.sortColumn = nil
+                }
+            }
             .onChange(of: sortColumn) { _, _ in debouncedRebuildSort() }
             .onChange(of: sortAscending) { _, _ in debouncedRebuildSort() }
             .onAppear {

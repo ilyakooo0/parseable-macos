@@ -160,20 +160,22 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
     /// Escapes special characters for valid JSON string output.
     static func escapeJSONString(_ s: String) -> String {
         var result = ""
-        result.reserveCapacity(s.count)
-        for char in s {
-            switch char {
+        result.unicodeScalars.reserveCapacity(s.unicodeScalars.count)
+        for scalar in s.unicodeScalars {
+            switch scalar {
             case "\"": result += "\\\""
             case "\\": result += "\\\\"
             case "\n": result += "\\n"
             case "\r": result += "\\r"
             case "\t": result += "\\t"
             default:
-                if char.asciiValue.map({ $0 < 0x20 }) == true {
-                    let code = char.asciiValue!
-                    result += String(format: "\\u%04x", code)
+                // Any control character (U+0000–U+001F), including those that
+                // would otherwise combine into a grapheme cluster, must be
+                // escaped to produce valid JSON.
+                if scalar.value < 0x20 {
+                    result += String(format: "\\u%04x", scalar.value)
                 } else {
-                    result.append(char)
+                    result.unicodeScalars.append(scalar)
                 }
             }
         }
@@ -190,13 +192,57 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
         case (_, .null): return false
         case (.bool(let a), .bool(let b)): return !a && b
         case (.int(let a), .int(let b)): return a < b
-        case (.double(let a), .double(let b)): return a < b
-        case (.int(let a), .double(let b)): return Double(a) < b
-        case (.double(let a), .int(let b)): return a < Double(b)
+        case (.double(let a), .double(let b)): return doubleLessThan(a, b)
+        case (.int(let a), .double(let b)): return doubleLessThan(Double(a), b)
+        case (.double(let a), .int(let b)): return doubleLessThan(a, Double(b))
         case (.string(let a), .string(let b)):
             return a.localizedStandardCompare(b) == .orderedAscending
         default:
             return lhs.displayString < rhs.displayString
+        }
+    }
+
+    /// Total ordering for doubles that keeps `sort()` from trapping on NaN
+    /// (IEEE comparisons with NaN are always false, which violates the strict
+    /// weak ordering `Comparable` requires). NaN is ordered after all numbers.
+    private static func doubleLessThan(_ a: Double, _ b: Double) -> Bool {
+        if a.isNaN { return false }
+        if b.isNaN { return true }
+        return a < b
+    }
+
+    // MARK: - Equatable / Hashable
+
+    /// Equality treats numerically-equal integers and doubles as equal
+    /// (e.g. `.int(1) == .double(1.0)`) to stay consistent with `<`, which
+    /// compares the two numerically. Synthesized conformance would instead
+    /// distinguish them by enum case, violating the `Comparable` contract.
+    static func == (lhs: JSONValue, rhs: JSONValue) -> Bool {
+        switch (lhs, rhs) {
+        case (.null, .null): return true
+        case (.bool(let a), .bool(let b)): return a == b
+        case (.int(let a), .int(let b)): return a == b
+        case (.double(let a), .double(let b)): return a == b
+        case (.int(let a), .double(let b)): return Double(a) == b
+        case (.double(let a), .int(let b)): return a == Double(b)
+        case (.string(let a), .string(let b)): return a == b
+        case (.array(let a), .array(let b)): return a == b
+        case (.object(let a), .object(let b)): return a == b
+        default: return false
+        }
+    }
+
+    func hash(into hasher: inout Hasher) {
+        switch self {
+        case .null: hasher.combine(0)
+        case .bool(let v): hasher.combine(v)
+        // Hash integers via their Double value so `.int(1)` and `.double(1.0)`
+        // — which are `==` — produce the same hash.
+        case .int(let v): hasher.combine(Double(v))
+        case .double(let v): hasher.combine(v)
+        case .string(let v): hasher.combine(v)
+        case .array(let v): hasher.combine(v)
+        case .object(let v): hasher.combine(v)
         }
     }
 }
