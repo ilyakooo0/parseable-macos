@@ -19,7 +19,7 @@ struct FilterQuery: Codable, Hashable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        filterType = try container.decode(String.self, forKey: .filterType)
+        filterType = (try? container.decode(String.self, forKey: .filterType)) ?? "sql"
         filterQuery = try? container.decode(String.self, forKey: .filterQuery)
         filterBuilder = try? container.decode(JSONValue.self, forKey: .filterBuilder)
     }

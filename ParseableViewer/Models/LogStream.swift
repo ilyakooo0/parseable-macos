@@ -10,7 +10,14 @@ struct LogStream: Identifiable, Codable, Hashable, Sendable, Comparable {
     }
 
     static func < (lhs: LogStream, rhs: LogStream) -> Bool {
-        lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+        // Fall back to a raw comparison when the localized comparison reports
+        // `.orderedSame` for two distinct names (e.g. Unicode-equivalent forms),
+        // so `<` stays a strict total order consistent with synthesized `==`.
+        switch lhs.name.localizedStandardCompare(rhs.name) {
+        case .orderedAscending: return true
+        case .orderedDescending: return false
+        case .orderedSame: return lhs.name < rhs.name
+        }
     }
 
     init(from decoder: Decoder) throws {

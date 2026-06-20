@@ -96,16 +96,18 @@ final class AppState {
     // MARK: - Connection Management
 
     @MainActor
-    func connect(to connection: ServerConnection) async {
-        guard !isConnecting else { return }
+    @discardableResult
+    func connect(to connection: ServerConnection) async -> Bool {
+        guard !isConnecting else { return false }
 
         if !isNetworkAvailable {
             self.errorMessage = "No internet connection. Check your network and try again."
             self.showError = true
-            return
+            return false
         }
 
         isConnecting = true
+        defer { isConnecting = false }
         errorMessage = nil
 
         // When switching to a different server, clear stream-specific state
@@ -126,6 +128,11 @@ final class AppState {
             // Test connection — throws on non-200 or network failure
             try await newClient.checkHealth()
 
+            // If the task was cancelled while awaiting (e.g. user clicked
+            // Disconnect during auto-reconnect), bail before installing the
+            // client so we don't resurrect a connection disconnect() just cleared.
+            if Task.isCancelled { return false }
+
             self.client = newClient
             self.activeConnection = connection
             self.isConnected = true
@@ -137,15 +144,30 @@ final class AppState {
             async let streamList = newClient.listStreams()
             async let filterList = newClient.listFilters()
 
-            self.serverAbout = try? await about
-            self.filters = (try? await filterList) ?? []
+            let aboutResult = try? await about
+            let filterResult = (try? await filterList) ?? []
+            let streamResult: Result<[LogStream], Error>
             do {
-                self.streams = try await streamList
-                self.streamLoadError = nil
+                streamResult = .success(try await streamList)
             } catch {
+                streamResult = .failure(error)
+            }
+
+            // Re-check after the loads above: a disconnect could have landed
+            // while awaiting, in which case committing these would show stale data.
+            if Task.isCancelled { return false }
+
+            self.serverAbout = aboutResult
+            self.filters = filterResult
+            switch streamResult {
+            case .success(let list):
+                self.streams = list
+                self.streamLoadError = nil
+            case .failure(let error):
                 self.streams = []
                 self.streamLoadError = ParseableError.userFriendlyMessage(for: error)
             }
+            return true
         } catch {
             // If the task was cancelled (e.g. user clicked Disconnect during
             // auto-reconnect), skip the error alert — disconnect() already
@@ -164,9 +186,8 @@ final class AppState {
                 self.serverAbout = nil
                 self.filters = []
             }
+            return false
         }
-
-        isConnecting = false
     }
 
     @MainActor

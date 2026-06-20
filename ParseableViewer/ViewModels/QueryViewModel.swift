@@ -460,7 +460,9 @@ final class QueryViewModel {
         var empty = Set(columns)
         for record in records {
             if empty.isEmpty { break }
-            for column in empty {
+            // Iterate a snapshot: mutating `empty` while iterating it directly
+            // is undefined behavior and can skip elements or trap.
+            for column in Array(empty) {
                 if let value = record[column], value != .null, value != .string("") {
                     empty.remove(column)
                 }

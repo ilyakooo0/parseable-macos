@@ -20,14 +20,6 @@ struct StreamDetailView: View {
                                 Text(stream)
                                     .font(.title2)
                                     .fontWeight(.semibold)
-
-                                if let info {
-                                    if let created = info.createdAt {
-                                        Text("Created: \(created)")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
                             }
 
                             Spacer()

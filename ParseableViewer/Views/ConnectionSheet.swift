@@ -181,14 +181,14 @@ struct ConnectionSheet: View {
         testResult = nil
 
         Task {
-            await appState.connect(to: conn)
+            let success = await appState.connect(to: conn)
             await MainActor.run {
                 isSaving = false
-                if appState.errorMessage != nil {
-                    testResult = .failure(appState.errorMessage ?? "Connection failed")
-                } else {
+                if success {
                     password = ""
                     dismiss()
+                } else {
+                    testResult = .failure(appState.errorMessage ?? "Connection failed")
                 }
             }
         }
