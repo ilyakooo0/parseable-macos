@@ -48,6 +48,10 @@ final class LiveTailViewModel {
     /// (which would let the two interleave and write `lastTimestamp` /
     /// `consecutiveErrors` out of order).
     private var isPolling = false
+    /// Bumped by start()/stop()/clear() so an in-flight poll whose network
+    /// round-trip outlives one of those transitions can detect it was superseded
+    /// and drop its results instead of repopulating a torn-down/cleared tail.
+    private var pollGeneration = 0
 
     deinit {
         timer?.invalidate()
@@ -56,6 +60,9 @@ final class LiveTailViewModel {
     // Cached formatters — nonisolated(unsafe) so static methods can use them from Task.detached
     nonisolated(unsafe) private static let displayFormatter: DateFormatter = {
         let f = DateFormatter()
+        // Fixed-format formatters must use en_US_POSIX so a non-Gregorian or
+        // non-Latin-digit system locale doesn't render wrong numerals/era.
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "HH:mm:ss.SSS"
         return f
     }()
@@ -168,6 +175,7 @@ final class LiveTailViewModel {
         let storedMax = UserDefaults.standard.integer(forKey: "liveTailMaxEntries")
         if storedMax > 0 { maxEntries = storedMax }
 
+        pollGeneration += 1
         isRunning = true
         isPaused = false
         errorMessage = nil
@@ -195,6 +203,7 @@ final class LiveTailViewModel {
     }
 
     func stop() {
+        pollGeneration += 1
         timer?.invalidate()
         timer = nil
         isRunning = false
@@ -206,8 +215,14 @@ final class LiveTailViewModel {
     }
 
     func clear() {
+        pollGeneration += 1
         entries = []
         seenFingerprints = []
+        // Advance the look-back floor to now: without this, the next poll queries
+        // from the old `lastTimestamp` with an empty fingerprint set and re-inserts
+        // every just-cleared record still inside the ~90 s window, repopulating the
+        // view the user just emptied. Matches start()'s reset.
+        lastTimestamp = Date()
         allKnownKeys = []
         droppedCount = 0
         columns = []
@@ -355,6 +370,7 @@ final class LiveTailViewModel {
         guard !isPolling else { return }
         isPolling = true
         defer { isPolling = false }
+        let generation = pollGeneration
 
         let now = Date()
         // The Parseable server truncates query time-ranges to minute
@@ -373,6 +389,11 @@ final class LiveTailViewModel {
 
         do {
             let records = try await client.query(sql: sql, startTime: queryStart, endTime: now)
+
+            // A stop()/clear()/start during the network round-trip supersedes this
+            // poll; don't write stale results to a torn-down or cleared tail. Also
+            // bail if the user paused mid-flight.
+            guard isRunning, !isPaused, generation == pollGeneration else { return }
 
             // Process records off the main actor using a snapshot of seen fingerprints
             let seenSnapshot = seenFingerprints
@@ -394,6 +415,10 @@ final class LiveTailViewModel {
                 }
                 return results
             }.value
+
+            // Re-check after the detached processing hop: a stop/clear could have
+            // landed while we were off the main actor.
+            guard isRunning, !isPaused, generation == pollGeneration else { return }
 
             // Authoritative dedup on main actor
             var newEntries: [LiveTailEntry] = []
@@ -451,7 +476,10 @@ final class LiveTailViewModel {
             errorMessage = nil
             consecutiveErrors = 0
         } catch {
-            guard !Task.isCancelled else { return }
+            // Drop the error if this poll was cancelled or superseded by a
+            // stop/clear/start — don't bump the failure counter or surface an
+            // error on a tail the user already tore down.
+            guard !Task.isCancelled, isRunning, generation == pollGeneration else { return }
             consecutiveErrors += 1
             if consecutiveErrors >= Self.maxConsecutiveErrors {
                 errorMessage = "\(ParseableError.userFriendlyMessage(for: error)) — stopped after \(consecutiveErrors) consecutive failures"

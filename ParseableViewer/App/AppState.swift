@@ -237,6 +237,12 @@ final class AppState {
         streamLoadError = nil
         do {
             streams = try await client.listStreams()
+            // Drop a selection that no longer exists server-side (e.g. the stream
+            // was deleted from another client); otherwise the detail tabs keep
+            // querying a missing stream and surface 404s.
+            if let selected = selectedStream, !streams.contains(where: { $0.name == selected }) {
+                selectedStream = nil
+            }
         } catch {
             let message = ParseableError.userFriendlyMessage(for: error)
             streamLoadError = message

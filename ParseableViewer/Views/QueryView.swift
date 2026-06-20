@@ -1,5 +1,15 @@
 import SwiftUI
 
+/// Composite of the inputs that decide which query QueryView should run. Watched
+/// by a single `.onChange` so a stream switch and a pending saved-filter (which
+/// arrive in the same update) are handled together in one pass — two separate
+/// `.onChange` handlers would race and could clobber the filter with the default
+/// query depending on their firing order.
+private struct QueryViewContext: Equatable {
+    let stream: String?
+    let pendingSQL: String?
+}
+
 struct QueryView: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel = QueryViewModel()
@@ -251,19 +261,33 @@ struct QueryView: View {
                 )
             }
         }
-        .onChange(of: appState.selectedStream) { oldValue, newValue in
-            viewModel.clearResults()
-            if let stream = newValue {
-                let didSetDefault = viewModel.setDefaultQuery(stream: stream, previousStream: oldValue)
+        .onChange(of: QueryViewContext(stream: appState.selectedStream, pendingSQL: appState.pendingFilterSQL)) { old, new in
+            guard let stream = new.stream else {
+                viewModel.clearResults()
+                return
+            }
+            let streamChanged = old.stream != new.stream
+            if streamChanged {
+                viewModel.clearResults()
                 Task {
                     await viewModel.loadSchema(client: appState.client, stream: stream)
                 }
+            }
+            // A pending saved filter (set together with the stream switch, or on
+            // its own for the already-selected stream) takes priority over the
+            // default query. Consuming it here in the same handler that owns the
+            // stream switch avoids the previous two-handler race.
+            if let sql = appState.pendingFilterSQL {
+                appState.pendingFilterSQL = nil
+                viewModel.sqlQuery = sql
+                Task {
+                    await viewModel.executeQuery(client: appState.client, stream: stream)
+                }
+            } else if streamChanged {
+                let didSetDefault = viewModel.setDefaultQuery(stream: stream, previousStream: old.stream)
                 if didSetDefault {
                     Task {
-                        await viewModel.executeQuery(
-                            client: appState.client,
-                            stream: stream
-                        )
+                        await viewModel.executeQuery(client: appState.client, stream: stream)
                     }
                 }
             }
@@ -322,12 +346,6 @@ struct QueryView: View {
                     client: appState.client,
                     stream: appState.selectedStream
                 )
-            }
-        }
-        .onChange(of: appState.pendingFilterSQL) { _, newSQL in
-            if let sql = newSQL {
-                viewModel.sqlQuery = sql
-                appState.pendingFilterSQL = nil
             }
         }
         .alert("Export Error", isPresented: $showExportError) {
@@ -395,7 +413,10 @@ struct QueryView: View {
                 } else {
                     let encoder = JSONEncoder()
                     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                    content = (try? encoder.encode(results))
+                    // Project to visible columns so JSON export matches CSV and
+                    // doesn't leak hidden fields.
+                    let projected = QueryViewModel.projectRecords(results, to: columns)
+                    content = (try? encoder.encode(projected))
                         .flatMap { String(data: $0, encoding: .utf8) }
                 }
                 guard let content else {

@@ -497,7 +497,7 @@ final class QueryViewModel {
         guard !results.isEmpty else { return "[]" }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        if let data = try? encoder.encode(results),
+        if let data = try? encoder.encode(Self.projectRecords(results, to: visibleColumns)),
            let string = String(data: data, encoding: .utf8) {
             return string
         }
@@ -506,6 +506,17 @@ final class QueryViewModel {
 
     func exportAsCSV() -> String {
         Self.buildCSV(records: results, columns: visibleColumns)
+    }
+
+    /// Projects each record down to the given columns so JSON export, like CSV,
+    /// respects hidden columns instead of leaking every field. Safe to call from
+    /// any thread.
+    static func projectRecords(_ records: [LogRecord], to columns: [String]) -> [LogRecord] {
+        // No column list means no restriction (columns not computed yet) — export
+        // the full records rather than stripping every field to an empty object.
+        guard !columns.isEmpty else { return records }
+        let allowed = Set(columns)
+        return records.map { record in record.filter { allowed.contains($0.key) } }
     }
 
     /// Builds a CSV string from records and columns. Safe to call from any thread.

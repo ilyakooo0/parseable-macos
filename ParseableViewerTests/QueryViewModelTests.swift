@@ -138,6 +138,19 @@ final class QueryViewModelTests: XCTestCase {
         XCTAssertTrue(json.contains("\"value\""))
     }
 
+    func testProjectRecordsExcludesHiddenColumns() {
+        let records: [LogRecord] = [["visible": .string("v"), "hidden": .string("secret")]]
+        let projected = QueryViewModel.projectRecords(records, to: ["visible"])
+        XCTAssertEqual(projected.first?.keys.sorted(), ["visible"])
+        XCTAssertNil(projected.first?["hidden"], "Hidden column must not leak into export")
+    }
+
+    func testProjectRecordsEmptyColumnsKeepsAllFields() {
+        let records: [LogRecord] = [["a": .int(1), "b": .int(2)]]
+        let projected = QueryViewModel.projectRecords(records, to: [])
+        XCTAssertEqual(projected.first?.keys.sorted(), ["a", "b"])
+    }
+
     // MARK: - Time range
 
     func testTimeRangeOptionsAllHaveValues() {
