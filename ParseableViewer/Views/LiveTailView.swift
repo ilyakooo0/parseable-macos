@@ -306,13 +306,17 @@ struct LiveTailView: View {
             entries.map { ($0.id, extractSeverity(from: $0.record, severityColumns: sevCols)) },
             uniquingKeysWith: { first, _ in first }
         )
+        // Cancel any pending sort task before either path: when the sort is
+        // cleared (guard below), a previously-scheduled task could otherwise
+        // wake after its 150ms delay and overwrite the unsorted result with
+        // stale sorted entries.
+        liveTailSortTask?.cancel()
         guard let col = sortColumn else {
             cachedSorted = entries
             severityColumnSet = sevCols
             severityByID = severityMap
             return
         }
-        liveTailSortTask?.cancel()
         let asc = sortAscending
         liveTailSortTask = Task {
             try? await Task.sleep(for: .milliseconds(150))

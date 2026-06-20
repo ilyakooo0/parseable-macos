@@ -230,11 +230,16 @@ final class ParseableClient: Sendable {
     func createStream(name: String) async throws {
         let encoded = try Self.encodePathComponent(name)
         _ = try await performRequest(method: "PUT", path: "/api/v1/logstream/\(encoded)")
+        // Recreating a same-named stream must not serve a previous stream's
+        // cached schema/stats/info (cached for 60s), so drop the cache.
+        await cache.invalidate()
     }
 
     func deleteStream(name: String) async throws {
         let encoded = try Self.encodePathComponent(name)
         _ = try await performRequest(method: "DELETE", path: "/api/v1/logstream/\(encoded)")
+        // Invalidate so a later same-named stream doesn't see stale schema/stats/info.
+        await cache.invalidate()
     }
 
     func getStreamSchema(stream: String) async throws -> StreamSchema {
@@ -343,6 +348,12 @@ final class ParseableClient: Sendable {
             }
             return config
         } catch let newEndpointError {
+            // An auth failure won't be fixed by hitting the legacy endpoint (it
+            // would just 401 again), so surface it immediately rather than
+            // delaying the re-auth prompt behind a second failing round-trip.
+            if case ParseableError.unauthorized = newEndpointError {
+                throw newEndpointError
+            }
             do {
                 return try await legacyAlerts()
             } catch {
