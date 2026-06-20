@@ -188,15 +188,30 @@ struct StreamDetailView: View {
 
         var failures: [String] = []
         var sawNotFound = false
+        var newSchema: StreamSchema?
+        var newStats: StreamStats?
+        var newInfo: StreamInfo?
+        var newRetention: [RetentionConfig] = []
 
         func checkNotFound(_ error: Error) {
             if case .serverError(let code, _) = error as? ParseableError, code == 404 { sawNotFound = true }
         }
 
-        do { schema = try await schemaFetch } catch { schema = nil; failures.append("schema"); checkNotFound(error) }
-        do { stats = try await statsFetch } catch { stats = nil; failures.append("stats"); checkNotFound(error) }
-        do { info = try await infoFetch } catch { info = nil; failures.append("info"); checkNotFound(error) }
-        do { retention = try await retentionFetch } catch { retention = []; failures.append("retention"); checkNotFound(error) }
+        do { newSchema = try await schemaFetch } catch { failures.append("schema"); checkNotFound(error) }
+        do { newStats = try await statsFetch } catch { failures.append("stats"); checkNotFound(error) }
+        do { newInfo = try await infoFetch } catch { failures.append("info"); checkNotFound(error) }
+        do { newRetention = try await retentionFetch } catch { failures.append("retention"); checkNotFound(error) }
+
+        // The manual Refresh/Retry buttons spawn detached Tasks that aren't tied to
+        // `.task(id: stream)` cancellation, so a slow refresh for the old stream can
+        // resolve after the user switched. Drop stale results instead of writing
+        // them under the new stream's header.
+        guard stream == appState.selectedStream else { return }
+
+        schema = newSchema
+        stats = newStats
+        info = newInfo
+        retention = newRetention
 
         // A deleted stream makes these endpoints 404. Requiring *all four* to
         // fail was too strict (e.g. retention can succeed with an empty result),

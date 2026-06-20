@@ -81,8 +81,14 @@ struct AlertsView: View {
         alertConfig = nil
 
         do {
-            alertConfig = try await client.getAlerts(stream: stream)
+            let config = try await client.getAlerts(stream: stream)
+            // The manual Refresh/Retry buttons spawn detached Tasks not tied to
+            // `.task(id: stream)` cancellation, so a slow refresh for the old stream
+            // can resolve after a switch. Drop stale results.
+            guard stream == appState.selectedStream else { return }
+            alertConfig = config
         } catch {
+            guard stream == appState.selectedStream else { return }
             errorMessage = ParseableError.userFriendlyMessage(for: error)
         }
 

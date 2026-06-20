@@ -86,8 +86,21 @@ enum SQLCompletionProvider {
             }
         }
 
+        // The matching prefix is only the text before the caret (what the user has
+        // typed so far), but the replacement range spans the whole word — scan
+        // forward past any trailing word characters so a mid-token completion
+        // replaces the entire token instead of duplicating its tail.
+        var wordEnd = cursorPosition
+        while wordEnd < nsText.length {
+            if isWordCharacter(nsText.character(at: wordEnd)) {
+                wordEnd += 1
+            } else {
+                break
+            }
+        }
+
         let prefix = nsText.substring(with: NSRange(location: wordStart, length: cursorPosition - wordStart))
-        let range = NSRange(location: wordStart, length: cursorPosition - wordStart)
+        let range = NSRange(location: wordStart, length: wordEnd - wordStart)
 
         guard !prefix.isEmpty else {
             return ([], "", range)

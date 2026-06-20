@@ -225,6 +225,10 @@ final class LiveTailViewModel {
         lastTimestamp = Date()
         allKnownKeys = []
         droppedCount = 0
+        // Reset the failure counter too: the timer keeps polling after a clear, so
+        // leaving accumulated errors in place could trip the auto-stop threshold
+        // sooner than the intended N consecutive failures. Matches start()'s reset.
+        consecutiveErrors = 0
         columns = []
         columnOrder = []
         hiddenColumns = []
@@ -513,6 +517,19 @@ final class LiveTailViewModel {
         return String(h0, radix: 36) + String(h1, radix: 36)
     }
 
+    /// Mixes the 8 bytes of a number's canonical 64-bit representation, prefixed by
+    /// a shared numeric type byte so ints and equal-valued doubles fingerprint alike.
+    nonisolated private static func hashNumberBits(_ bitPattern: UInt64, h0: inout UInt64, h1: inout UInt64) {
+        h0 = (h0 ^ 0x02) &* 1099511628211
+        h1 = (h1 ^ 0x02) &* 6700417
+        var bits = bitPattern
+        for _ in 0..<8 {
+            h0 = (h0 ^ (bits & 0xFF)) &* 1099511628211
+            h1 = (h1 ^ (bits & 0xFF)) &* 6700417
+            bits >>= 8
+        }
+    }
+
     /// Recursively hashes a JSONValue tree without allocating intermediate strings.
     /// Uses type-discriminator bytes to prevent cross-type collisions.
     nonisolated private static func hashJSONValue(_ value: JSONValue, h0: inout UInt64, h1: inout UInt64) {
@@ -526,24 +543,15 @@ final class LiveTailViewModel {
             let byte: UInt64 = b ? 1 : 0
             h0 = (h0 ^ byte) &* 1099511628211
             h1 = (h1 ^ byte) &* 6700417
+        // `.int` and `.double` share one numeric encoding so the fingerprint stays
+        // consistent with JSONValue equality, where `.int(5) == .double(5.0)`.
+        // JSONValue.hash(into:) canonicalizes both through `Double`; mirror that here
+        // (with NaN folded to a single bit pattern) so a field that serializes as `5`
+        // in one poll and `5.0` in another doesn't bypass dedup as a phantom row.
         case .int(let i):
-            h0 = (h0 ^ 0x02) &* 1099511628211
-            h1 = (h1 ^ 0x02) &* 6700417
-            var bits = UInt64(bitPattern: Int64(i))
-            for _ in 0..<8 {
-                h0 = (h0 ^ (bits & 0xFF)) &* 1099511628211
-                h1 = (h1 ^ (bits & 0xFF)) &* 6700417
-                bits >>= 8
-            }
+            hashNumberBits(Double(i).bitPattern, h0: &h0, h1: &h1)
         case .double(let d):
-            h0 = (h0 ^ 0x03) &* 1099511628211
-            h1 = (h1 ^ 0x03) &* 6700417
-            var bits = d.bitPattern
-            for _ in 0..<8 {
-                h0 = (h0 ^ UInt64(bits & 0xFF)) &* 1099511628211
-                h1 = (h1 ^ UInt64(bits & 0xFF)) &* 6700417
-                bits >>= 8
-            }
+            hashNumberBits((d.isNaN ? Double.nan : d).bitPattern, h0: &h0, h1: &h1)
         case .string(let s):
             h0 = (h0 ^ 0x04) &* 1099511628211
             h1 = (h1 ^ 0x04) &* 6700417

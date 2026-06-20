@@ -127,7 +127,13 @@ struct ConnectionSheet: View {
                     saveAndConnect()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(name.isEmpty || url.isEmpty || username.isEmpty || isSaving || urlValidationError != nil)
+                .disabled(
+                    name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || isSaving
+                        || urlValidationError != nil
+                )
             }
             .padding()
         }
@@ -152,7 +158,12 @@ struct ConnectionSheet: View {
 
         Task {
             do {
-                let conn = ServerConnection(name: name, url: url, username: username, password: password)
+                let conn = ServerConnection(
+                    name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                    url: url.trimmingCharacters(in: .whitespacesAndNewlines),
+                    username: username.trimmingCharacters(in: .whitespacesAndNewlines),
+                    password: password
+                )
                 let client = try ParseableClient(connection: conn)
                 try await client.checkHealth()
                 await MainActor.run {
@@ -171,12 +182,16 @@ struct ConnectionSheet: View {
     private func saveAndConnect() {
         guard !isSaving else { return }
 
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+
         let conn: ServerConnection
         if let existing = connection ?? createdConnection {
-            conn = ServerConnection(id: existing.id, name: name, url: url, username: username, password: password)
+            conn = ServerConnection(id: existing.id, name: trimmedName, url: trimmedURL, username: trimmedUsername, password: password)
             appState.updateConnection(conn)
         } else {
-            conn = ServerConnection(name: name, url: url, username: username, password: password)
+            conn = ServerConnection(name: trimmedName, url: trimmedURL, username: trimmedUsername, password: password)
             appState.addConnection(conn)
             createdConnection = conn
         }

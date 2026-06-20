@@ -192,7 +192,9 @@ struct SQLEditorView: NSViewRepresentable {
             let cursorPosition = textView.selectedRange().location
             let nsText = textView.string as NSString
 
-            // Find the prefix range to replace
+            // Find the full word range to replace. Scan backward for the start and
+            // forward for the end so a mid-token caret (e.g. SEL|ECT) replaces the
+            // entire word rather than leaving the trailing fragment ("SELECTECT").
             var wordStart = cursorPosition
             while wordStart > 0 {
                 let ch = nsText.character(at: wordStart - 1)
@@ -203,7 +205,17 @@ struct SQLEditorView: NSViewRepresentable {
                 }
             }
 
-            let replaceRange = NSRange(location: wordStart, length: cursorPosition - wordStart)
+            var wordEnd = cursorPosition
+            while wordEnd < nsText.length {
+                let ch = nsText.character(at: wordEnd)
+                if SQLCompletionProvider.isWordCharacter(ch) {
+                    wordEnd += 1
+                } else {
+                    break
+                }
+            }
+
+            let replaceRange = NSRange(location: wordStart, length: wordEnd - wordStart)
 
             isInsertingCompletion = true
             defer { isInsertingCompletion = false }
