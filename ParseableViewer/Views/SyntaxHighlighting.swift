@@ -76,17 +76,20 @@ enum SQLSyntaxHighlighter {
         let nsText = text as NSString
         var protectedRanges: [NSRange] = []
 
-        // 1. Comments (-- to end of line)
-        applyRegex(commentRegex, to: textStorage, text: nsText,
-                   color: .secondaryLabelColor, protectedRanges: &protectedRanges)
-
-        // 2. Single-quoted strings
+        // 1. Single-quoted strings
         applyRegex(singleQuoteRegex, to: textStorage, text: nsText,
                    color: .systemRed, protectedRanges: &protectedRanges)
 
-        // 3. Double-quoted identifiers
+        // 2. Double-quoted identifiers
         applyRegex(doubleQuoteRegex, to: textStorage, text: nsText,
                    color: .systemRed, protectedRanges: &protectedRanges)
+
+        // 3. Comments (-- to end of line). Highlighted AFTER strings, and a `--`
+        //    that begins inside a string literal (protectedRanges currently holds
+        //    only string ranges) is skipped — otherwise `'a--b' AND y = 5` would
+        //    bleed a gray comment over the trailing real SQL.
+        applyCommentRegex(commentRegex, to: textStorage, text: nsText,
+                          color: .secondaryLabelColor, protectedRanges: &protectedRanges)
 
         // 4. Numbers (outside protected ranges)
         applyUnprotectedRegex(numberRegex, to: textStorage, text: nsText,
@@ -115,6 +118,32 @@ enum SQLSyntaxHighlighter {
             textStorage.addAttribute(.foregroundColor, value: color, range: match.range)
             protectedRanges.append(match.range)
         }
+    }
+
+    /// Like `applyRegex`, but skips any match whose start falls inside an
+    /// already-claimed range (used for comments so a `--` inside a string literal
+    /// doesn't start a comment).
+    private static func applyCommentRegex(
+        _ regex: NSRegularExpression,
+        to textStorage: NSTextStorage,
+        text: NSString,
+        color: NSColor,
+        protectedRanges: inout [NSRange]
+    ) {
+        let matches = regex.matches(in: text as String, range: NSRange(location: 0, length: text.length))
+        for match in matches where !isStartProtected(match.range.location, by: protectedRanges) {
+            textStorage.addAttribute(.foregroundColor, value: color, range: match.range)
+            protectedRanges.append(match.range)
+        }
+    }
+
+    private static func isStartProtected(_ location: Int, by protectedRanges: [NSRange]) -> Bool {
+        for protected in protectedRanges {
+            if location >= protected.location && location < NSMaxRange(protected) {
+                return true
+            }
+        }
+        return false
     }
 
     private static func applyUnprotectedRegex(

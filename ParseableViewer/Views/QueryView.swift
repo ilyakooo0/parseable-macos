@@ -284,13 +284,29 @@ struct QueryView: View {
                         await viewModel.loadSchema(client: appState.client, stream: stream)
                     }
                 }
-                let didSetDefault = viewModel.setDefaultQuery(stream: stream)
-                if didSetDefault && viewModel.results.isEmpty {
+                // A saved filter may have set pendingFilterSQL before this view was
+                // mounted (e.g. the filter was launched from another tab). .onChange
+                // doesn't fire for a value that changed before the view entered the
+                // hierarchy, so honor it here instead of overwriting the editor with
+                // the default query.
+                if let sql = appState.pendingFilterSQL {
+                    viewModel.sqlQuery = sql
+                    appState.pendingFilterSQL = nil
                     Task {
                         await viewModel.executeQuery(
                             client: appState.client,
                             stream: stream
                         )
+                    }
+                } else {
+                    let didSetDefault = viewModel.setDefaultQuery(stream: stream)
+                    if didSetDefault && viewModel.results.isEmpty {
+                        Task {
+                            await viewModel.executeQuery(
+                                client: appState.client,
+                                stream: stream
+                            )
+                        }
                     }
                 }
             }

@@ -22,9 +22,11 @@ func idealColumnWidth(for column: String, records: [LogRecord]) -> CGFloat {
     var widest = measureTextWidth(column, font: headerMeasureFont)
     // Sample evenly across the whole result set, not just the first N rows —
     // otherwise a wide value that sorts beyond row N is never measured and the
-    // column auto-fits too narrow after sorting.
-    let step = max(1, (records.count + sampleCount - 1) / max(sampleCount, 1))
-    for i in stride(from: 0, to: records.count, by: step).prefix(sampleCount) {
+    // column auto-fits too narrow after sorting. Map each of the `sampleCount`
+    // samples to a spread-out index so we hit exactly `sampleCount` distinct rows
+    // (a stride with an integer step would skip rows yet still undersample).
+    for s in 0..<sampleCount {
+        let i = s * records.count / sampleCount
         let text = records[i][column]?.displayString ?? ""
         widest = max(widest, measureTextWidth(text, font: cellMeasureFont))
     }

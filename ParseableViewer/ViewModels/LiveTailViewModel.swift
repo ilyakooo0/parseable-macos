@@ -529,6 +529,7 @@ final class LiveTailViewModel {
             for element in arr {
                 hashJSONValue(element, h0: &h0, h1: &h1)
                 h0 = (h0 ^ 0xFE) &* 1099511628211 // element separator
+                h1 = (h1 ^ 0xFE) &* 6700417
             }
         case .object(let dict):
             h0 = (h0 ^ 0x06) &* 1099511628211

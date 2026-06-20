@@ -305,7 +305,10 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
         // Hash integers via their Double value so `.int(1)` and `.double(1.0)`
         // — which are `==` — produce the same hash.
         case .int(let v): hasher.combine(Double(v))
-        case .double(let v): hasher.combine(v)
+        // Canonicalize NaN: `==` treats all NaNs as equal, so every NaN must hash
+        // identically to satisfy the Hashable contract (differing NaN bit patterns
+        // would otherwise hash differently).
+        case .double(let v): hasher.combine(v.isNaN ? Double.nan : v)
         case .string(let v): hasher.combine(v)
         case .array(let v): hasher.combine(v)
         case .object(let v): hasher.combine(v)

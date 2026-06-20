@@ -54,6 +54,9 @@ final class QueryViewModel {
 
     // Schema fields for autocomplete
     var schemaFields: [SchemaField] = []
+    /// The stream of the most recent `loadSchema` call, used to drop a stale
+    /// in-flight response when the user rapidly switches streams.
+    private var latestSchemaStream: String?
 
     // Query task for cancellation
     private var queryTask: Task<Void, Never>?
@@ -436,14 +439,20 @@ final class QueryViewModel {
 
     @MainActor
     func loadSchema(client: ParseableClient?, stream: String?) async {
+        latestSchemaStream = stream
         guard let client, let stream else {
             schemaFields = []
             return
         }
         do {
             let schema = try await client.getStreamSchema(stream: stream)
+            // A newer load (e.g. a rapid stream switch) may have superseded this
+            // one; only commit if this is still the stream last requested,
+            // otherwise we'd show the wrong stream's fields in autocomplete.
+            guard latestSchemaStream == stream else { return }
             schemaFields = schema.fields
         } catch {
+            guard latestSchemaStream == stream else { return }
             // Schema load is best-effort; don't surface errors
             schemaFields = []
         }

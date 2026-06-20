@@ -50,6 +50,12 @@ struct LogDetailView: View {
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
+        .onChange(of: record) { _, _ in
+            // Selecting a different row reuses this view with a new record; clear
+            // any lingering checkmark/timer so the confirmation doesn't carry over.
+            copyConfirmationTask?.cancel()
+            showCopyConfirmation = false
+        }
     }
 
     private func copyToClipboard() {
