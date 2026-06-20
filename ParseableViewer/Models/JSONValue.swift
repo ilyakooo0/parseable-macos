@@ -272,7 +272,11 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
         case (.null, .null): return true
         case (.bool(let a), .bool(let b)): return a == b
         case (.int(let a), .int(let b)): return a == b
-        case (.double(let a), .double(let b)): return a == b
+        // NaN must compare equal to itself here: `<` (via doubleLessThan) orders
+        // two NaNs as equivalent, and Comparable requires order-equivalent values
+        // to be ==. Raw `a == b` (NaN != NaN) would break reflexivity, so e.g.
+        // `.array([.double(.nan)])` would not equal itself.
+        case (.double(let a), .double(let b)): return a == b || (a.isNaN && b.isNaN)
         case (.int(let a), .double(let b)): return Self.intEqualsDouble(a, b)
         case (.double(let a), .int(let b)): return Self.intEqualsDouble(b, a)
         case (.string(let a), .string(let b)): return a == b

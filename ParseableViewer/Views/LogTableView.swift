@@ -139,12 +139,19 @@ func parseOTelSeverityNumber(_ num: Int) -> SeverityLevel {
 
 /// Extracts the severity level from a log record by checking only known severity columns.
 func extractSeverity(from record: LogRecord, severityColumns: Set<String>) -> SeverityLevel {
-    for col in severityColumns {
+    // Iterate in a deterministic (sorted) order so that, when a record carries
+    // more than one severity-like column with conflicting values, the "winning"
+    // column is stable across runs rather than dependent on Set iteration order.
+    for col in severityColumns.sorted() {
         guard let value = record[col] else { continue }
         let str: String
         switch value {
         case .string(let s): str = s
         case .int(let i):    str = String(i)
+        // Numeric severities (e.g. OTel severity_number) sometimes decode as a
+        // double; stringify the integral value so they still parse.
+        case .double(let d) where d == d.rounded() && abs(d) < 1e15:
+            str = String(format: "%.0f", d)
         default:             continue
         }
         // OpenTelemetry severity columns use a 1–24 scale that collides with
@@ -297,6 +304,13 @@ struct LogTableView: View {
                 // their natural order.
                 if let sortColumn, !newColumns.contains(sortColumn) {
                     self.sortColumn = nil
+                    // The sortColumn change triggers its own rebuild below.
+                } else {
+                    // Columns changed without dropping the sort column (e.g.
+                    // hiding/showing a severity column via the Column Manager).
+                    // Rebuild so the severity column set — and therefore row
+                    // tinting — reflects the new columns.
+                    debouncedRebuildSort()
                 }
             }
             .onChange(of: sortColumn) { _, _ in debouncedRebuildSort() }
@@ -674,7 +688,10 @@ struct LogRowView: View {
                     .foregroundStyle(colorForValue(column: column, value: value))
                     .contextMenu {
                         Button("Copy Value") {
-                            let text = value?.displayString ?? ""
+                            // Use exportString, not displayString: the latter
+                            // renders nested arrays/objects as placeholders like
+                            // "[3 items]", so copying would lose the real data.
+                            let text = value?.exportString ?? ""
                             NSPasteboard.general.clearContents()
                             _ = NSPasteboard.general.setString(text, forType: .string)
                         }

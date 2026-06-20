@@ -28,6 +28,12 @@ final class LiveTailViewModel {
     nonisolated(unsafe) private var timer: Timer?
     private var lastTimestamp: Date?
     private var seenFingerprints: Set<String> = []
+    /// Upper bound on the dedup fingerprint set. Kept well above `maxEntries` so
+    /// fingerprints of recently-evicted entries survive long enough to suppress
+    /// duplicates that reappear inside the next poll's look-back window, while
+    /// still bounding memory. Only when this is exceeded do we fall back to the
+    /// retained-entry fingerprints.
+    private var maxSeenFingerprints: Int { maxEntries * 4 }
     private var allKnownKeys: Set<String> = []
     private var consecutiveErrors = 0
     private static let maxConsecutiveErrors = 5
@@ -372,8 +378,18 @@ final class LiveTailViewModel {
                     entries.sort { $0.timestamp < $1.timestamp }
                     entries = Array(entries.suffix(maxEntries))
 
-                    // Rebuild fingerprint set from stored values (no re-hashing)
-                    seenFingerprints = Set(entries.map { $0.fingerprint })
+                    // Do NOT rebuild the fingerprint set from the retained
+                    // entries: an evicted record can still fall inside the next
+                    // poll's look-back window, and dropping its fingerprint here
+                    // would let it pass the dedup check and be re-appended as a
+                    // duplicate. Keep the full seen-set so dedup stays correct;
+                    // it is bounded below to avoid unbounded growth.
+                    if seenFingerprints.count > maxSeenFingerprints {
+                        // Retain the fingerprints of everything still buffered
+                        // (those are the ones that matter for dedup) and discard
+                        // the older surplus.
+                        seenFingerprints = Set(entries.map { $0.fingerprint })
+                    }
                 }
 
                 // Only scan new records for new keys

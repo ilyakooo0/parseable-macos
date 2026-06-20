@@ -147,6 +147,13 @@ struct SQLEditorView: NSViewRepresentable {
         // MARK: - Completions
 
         private func updateCompletions(for textView: NSTextView) {
+            // Capture the text view that the popup is being presented for. The
+            // popup's accept handler (e.g. a double-click in the borderless popup
+            // window) doesn't necessarily route through the begin-editing /
+            // selection-change delegate callbacks first, so relying on those
+            // alone to record the target can drop an accepted completion.
+            lastTextView = textView
+
             let cursorPosition = textView.selectedRange().location
             let result = SQLCompletionProvider.completions(
                 for: textView.string,

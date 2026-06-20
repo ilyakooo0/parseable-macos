@@ -135,6 +135,10 @@ struct ConnectionSheet: View {
                 username = connection.username
                 password = connection.password
             }
+            // Validate the pre-filled URL on open. onChange(of:url) doesn't fire
+            // for the initial assignment above, so without this an invalid stored
+            // URL would show no error and pass the Save guard.
+            urlValidationError = Self.validateURL(url)
         }
     }
 

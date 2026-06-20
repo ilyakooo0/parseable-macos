@@ -3,7 +3,10 @@ import SwiftUI
 struct LiveTailView: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel = LiveTailViewModel()
-    @State private var selectedRecord: LogRecord?
+    /// Selection is tracked by entry id, not by record value: live-tail rows
+    /// frequently share identical content (repeated log lines), so comparing by
+    /// record value would select/toggle every matching row at once.
+    @State private var selectedEntryID: UUID?
     @State private var autoScroll = true
     @State private var pulseOpacity: Double = 1.0
     @State private var showColumnPopover = false
@@ -112,7 +115,7 @@ struct LiveTailView: View {
 
                     Button {
                         viewModel.clear()
-                        selectedRecord = nil
+                        selectedEntryID = nil
                         sortColumn = nil
                         columnWidths = [:]
                         cachedSorted = []
@@ -250,8 +253,9 @@ struct LiveTailView: View {
             .frame(minWidth: 400)
 
             // Detail pane
-            if let record = selectedRecord {
-                LogDetailView(record: record)
+            if let id = selectedEntryID,
+               let entry = cachedSorted.first(where: { $0.id == id }) {
+                LogDetailView(record: entry.record)
                     .frame(minWidth: 280, idealWidth: 320)
             }
         }
@@ -263,7 +267,7 @@ struct LiveTailView: View {
                 viewModel.stop()
             }
             viewModel.clear()
-            selectedRecord = nil
+            selectedEntryID = nil
             sortColumn = nil
             columnWidths = [:]
             cachedSorted = []
@@ -337,7 +341,7 @@ struct LiveTailView: View {
                                 record: entry.record,
                                 columns: viewModel.visibleColumns,
                                 columnWidths: columnWidths,
-                                isSelected: selectedRecord == entry.record,
+                                isSelected: selectedEntryID == entry.id,
                                 isAlternate: index % 2 == 1,
                                 severity: severityByID[entry.id] ?? .unknown,
                                 severityColumns: severityColumnSet,
@@ -347,10 +351,10 @@ struct LiveTailView: View {
                                 }
                             )
                             .onTapGesture {
-                                if selectedRecord == entry.record {
-                                    selectedRecord = nil
+                                if selectedEntryID == entry.id {
+                                    selectedEntryID = nil
                                 } else {
-                                    selectedRecord = entry.record
+                                    selectedEntryID = entry.id
                                 }
                             }
                         }
@@ -381,9 +385,11 @@ struct LiveTailView: View {
                 rebuildSortedEntries()
             }
             // Scroll when the rendered list (`cachedSorted`) changes, targeting
-            // its last element. Keying off `entries.count` could fire before the
-            // rebuild, scrolling to an id not yet present (a silent no-op).
-            .onChange(of: cachedSorted.count) { _, _ in
+            // its last element. Key off the last element's id rather than the
+            // count: once the buffer is pinned at `maxEntries`, the count stops
+            // changing while new rows keep arriving, so a count-based trigger
+            // would silently stall auto-scroll.
+            .onChange(of: cachedSorted.last?.id) { _, _ in
                 guard autoScroll, sortColumn == nil else { return }
                 if let target = cachedSorted.last {
                     proxy.scrollTo(target.id, anchor: .bottom)

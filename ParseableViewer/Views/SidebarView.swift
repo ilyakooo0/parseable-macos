@@ -280,6 +280,10 @@ struct FilterRow: View {
 
     var body: some View {
         Button {
+            // Don't navigate to a stream that no longer exists: it would drive
+            // detail views to query a deleted stream (surfacing 404s) and leave
+            // the sidebar selection pointing at no row.
+            guard streamExists else { return }
             appState.selectedStream = filter.streamName
             if let sql = filter.query.filterQuery {
                 appState.pendingFilterSQL = sql

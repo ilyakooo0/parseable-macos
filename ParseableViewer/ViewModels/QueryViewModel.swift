@@ -525,6 +525,17 @@ final class QueryViewModel {
     }
 
     func clearResults() {
+        // Cancel any in-flight work first. Without this, a query still running
+        // when the user switches streams or disconnects would pass its post-await
+        // cancellation check (it was never cancelled) and write its results +
+        // persist a column config for the *old* stream after this reset.
+        queryTask?.cancel()
+        queryTask = nil
+        searchTextTask?.cancel()
+        searchTextTask = nil
+        filterTask?.cancel()
+        filterTask = nil
+
         results = []
         columns = []
         columnOrder = []

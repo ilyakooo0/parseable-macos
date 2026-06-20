@@ -322,13 +322,29 @@ final class ParseableClient: Sendable {
         // a 405, or a 200 carrying a differently-shaped body (a DecodingError,
         // which is not a ParseableError and would otherwise escape this method).
         let encoded = try Self.encodePathComponent(stream)
+
+        func legacyAlerts() async throws -> AlertConfig {
+            let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/alert")
+            return try Self.jsonDecoder.decode(AlertConfig.self, from: data)
+        }
+
         do {
             let data = try await performRequest(method: "GET", path: "/api/v1/alerts")
-            return try Self.jsonDecoder.decode(AlertConfig.self, from: data)
+            let config = try Self.jsonDecoder.decode(AlertConfig.self, from: data)
+            // AlertConfig decodes leniently (every field via try?), so a 200 with
+            // an unexpected body yields an empty, non-throwing config rather than
+            // a DecodingError. Treat an empty result as "new endpoint unsupported"
+            // and fall through to the legacy per-stream endpoint instead of
+            // silently reporting no alerts.
+            if config.alerts?.isEmpty ?? true {
+                if let legacy = try? await legacyAlerts(), !(legacy.alerts?.isEmpty ?? true) {
+                    return legacy
+                }
+            }
+            return config
         } catch let newEndpointError {
             do {
-                let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/alert")
-                return try Self.jsonDecoder.decode(AlertConfig.self, from: data)
+                return try await legacyAlerts()
             } catch {
                 // Legacy also failed — surface the original (more informative) error.
                 throw newEndpointError

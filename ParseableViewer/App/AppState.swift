@@ -113,6 +113,11 @@ final class AppState {
         if activeConnection?.id != connection.id {
             selectedStream = nil
             streamLoadError = nil
+            // Reset the sidebar search filter and tab too: a stale filter would
+            // silently hide the new server's streams, and a stream-specific tab
+            // would have no valid selection behind it.
+            streamSearchText = ""
+            currentTab = .query
         }
 
         do {
