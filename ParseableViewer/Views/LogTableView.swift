@@ -288,26 +288,14 @@ struct LogTableView: View {
                 }
             }
             .onChange(of: records) { _, newRecords in
-                widthTask?.cancel()
-                let cols = columns
-                widthTask = Task.detached(priority: .userInitiated) {
-                    let widths = computeColumnWidths(columns: cols, records: newRecords)
-                    guard !Task.isCancelled else { return }
-                    await MainActor.run {
-                        // Preserve any width the user dragged or auto-fit; only fill
-                        // in columns that don't have a width yet (e.g. newly appearing
-                        // columns). A wholesale overwrite would discard manual resizes
-                        // on every re-query/filter/refresh.
-                        var merged = columnWidths
-                        for (col, width) in widths where merged[col] == nil {
-                            merged[col] = width
-                        }
-                        columnWidths = merged
-                    }
-                }
+                recomputeColumnWidths(columns: columns, records: newRecords)
                 debouncedRebuildSort()
             }
             .onChange(of: columns) { _, newColumns in
+                // New columns (e.g. shown via the Column Manager) need widths
+                // computed; the width task otherwise only runs on a records
+                // change, leaving them at the default width until the next query.
+                recomputeColumnWidths(columns: newColumns, records: records)
                 // After a stream switch the previous sort column may not exist
                 // in the new schema, which would silently produce a no-op sort
                 // (every row compares as .null). Drop it so rows fall back to
@@ -326,13 +314,29 @@ struct LogTableView: View {
             .onChange(of: sortColumn) { _, _ in debouncedRebuildSort() }
             .onChange(of: sortAscending) { _, _ in debouncedRebuildSort() }
             .onAppear {
-                let cols = columns
-                let recs = records
-                widthTask = Task.detached(priority: .userInitiated) {
-                    let widths = computeColumnWidths(columns: cols, records: recs)
-                    await MainActor.run { columnWidths = widths }
-                }
+                recomputeColumnWidths(columns: columns, records: records)
                 rebuildSort()
+            }
+        }
+    }
+
+    /// Computes column widths off the main actor and merges them into
+    /// `columnWidths`, filling only columns that don't yet have a width.
+    /// Preserves any width the user dragged or auto-fit; a wholesale overwrite
+    /// would discard manual resizes on every re-query/filter/refresh. Runs on
+    /// both records changes and columns-only changes so newly shown columns get
+    /// a fitted width rather than the default.
+    private func recomputeColumnWidths(columns cols: [String], records recs: [LogRecord]) {
+        widthTask?.cancel()
+        widthTask = Task.detached(priority: .userInitiated) {
+            let widths = computeColumnWidths(columns: cols, records: recs)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                var merged = columnWidths
+                for (col, width) in widths where merged[col] == nil {
+                    merged[col] = width
+                }
+                columnWidths = merged
             }
         }
     }

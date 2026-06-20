@@ -10,18 +10,23 @@ struct SQLCompletionItem: Hashable {
         case column
     }
 
+    /// The text inserted into the editor when the completion is accepted. For
+    /// tables this is the quoted identifier (`"name"`) so the resulting SQL is
+    /// valid even when the stream name contains spaces or other special chars.
     let text: String
     let kind: Kind
     let detail: String?
-    /// The raw text to insert (without quoting). For tables this equals the
-    /// unquoted stream name so prefix matching works correctly.
-    let insertText: String
+    /// The bare text used for prefix/exact-match comparison against what the
+    /// user typed. For tables this is the unquoted stream name, since the typed
+    /// prefix never includes the surrounding quotes. This is NOT what gets
+    /// inserted — see `text`.
+    let matchText: String
 
-    init(text: String, kind: Kind, detail: String? = nil, insertText: String? = nil) {
+    init(text: String, kind: Kind, detail: String? = nil, matchText: String? = nil) {
         self.text = text
         self.kind = kind
         self.detail = detail
-        self.insertText = insertText ?? text
+        self.matchText = matchText ?? text
     }
 
     var kindLabel: String {
@@ -99,7 +104,7 @@ enum SQLCompletionProvider {
                 items.append(SQLCompletionItem(
                     text: "\"\(name)\"",
                     kind: .table,
-                    insertText: name
+                    matchText: name
                 ))
             }
 
@@ -131,7 +136,7 @@ enum SQLCompletionProvider {
                 items.append(SQLCompletionItem(
                     text: "\"\(name)\"",
                     kind: .table,
-                    insertText: name
+                    matchText: name
                 ))
             }
             for field in schemaFields.sorted(by: { $0.name < $1.name })
@@ -141,9 +146,9 @@ enum SQLCompletionProvider {
         }
 
         // Don't show the popup when the only match is an exact hit. Compare the
-        // insert text (unquoted), not the display text — a table's display text is
+        // match text (unquoted), not the display text — a table's display text is
         // wrapped in quotes (`"name"`) and would never match the bare prefix.
-        if items.count == 1 && items[0].insertText.uppercased() == uppercasePrefix {
+        if items.count == 1 && items[0].matchText.uppercased() == uppercasePrefix {
             return ([], prefix, range)
         }
 

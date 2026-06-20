@@ -339,6 +339,16 @@ final class LiveTailViewModel {
                 hiddenColumns.formUnion(newCols.filter { savedHiddenColumns.contains($0) })
             }
         }
+
+        // The `visibleCount > 1` guard in toggleColumnVisibility only covers
+        // user toggles. The config-load and incremental-merge paths above can
+        // hide every known column (e.g. a saved-hidden set that happens to cover
+        // all columns seen so far), which would render the live-tail table with
+        // zero columns. Keep at least the first column visible.
+        if !columnOrder.isEmpty, hiddenColumns.count >= columnOrder.count,
+           let firstColumn = columnOrder.first {
+            hiddenColumns.remove(firstColumn)
+        }
     }
 
     private func poll(client: ParseableClient, stream: String) async {
