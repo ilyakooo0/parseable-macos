@@ -267,13 +267,18 @@ struct SQLTokenizer: Sendable {
             }
             return c.isNumber
         })
-        // Exponent
+        // Exponent — only consume `e`/`E` (and an optional sign) when actual
+        // exponent digits follow, so `1e` or `1e+` aren't swallowed whole and
+        // instead tokenize as a number followed by an identifier/operator.
         if i < sql.endIndex, sql[i] == "e" || sql[i] == "E" {
-            sql.formIndex(after: &i)
-            if i < sql.endIndex, sql[i] == "+" || sql[i] == "-" {
-                sql.formIndex(after: &i)
+            var lookahead = sql.index(after: i)
+            if lookahead < sql.endIndex, sql[lookahead] == "+" || sql[lookahead] == "-" {
+                sql.formIndex(after: &lookahead)
             }
-            advance(&i, in: sql, while: { $0.isNumber })
+            if lookahead < sql.endIndex, sql[lookahead].isNumber {
+                i = lookahead
+                advance(&i, in: sql, while: { $0.isNumber })
+            }
         }
     }
 

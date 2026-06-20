@@ -20,7 +20,11 @@ func idealColumnWidth(for column: String, records: [LogRecord]) -> CGFloat {
     let sampleCount = min(records.count, 200)
 
     var widest = measureTextWidth(column, font: headerMeasureFont)
-    for i in 0..<sampleCount {
+    // Sample evenly across the whole result set, not just the first N rows —
+    // otherwise a wide value that sorts beyond row N is never measured and the
+    // column auto-fits too narrow after sorting.
+    let step = max(1, records.count / max(sampleCount, 1))
+    for i in stride(from: 0, to: records.count, by: step).prefix(sampleCount) {
         let text = records[i][column]?.displayString ?? ""
         widest = max(widest, measureTextWidth(text, font: cellMeasureFont))
     }
@@ -114,6 +118,25 @@ func parseSeverity(from value: String) -> SeverityLevel {
     return .unknown
 }
 
+/// Columns (lowercased) that carry an OpenTelemetry `severity_number` (1–24)
+/// rather than an RFC 5424 syslog severity (0–7). The two scales overlap, so
+/// numeric values from these columns must be interpreted on the OTel scale.
+private let otelSeverityColumns: Set<String> = ["severity_number", "otel.severity"]
+
+/// Maps an OpenTelemetry `severity_number` (1–24) to a ``SeverityLevel``.
+/// Higher is more severe, in contrast to RFC 5424.
+func parseOTelSeverityNumber(_ num: Int) -> SeverityLevel {
+    switch num {
+    case 1...4:   return .trace
+    case 5...8:   return .debug
+    case 9...12:  return .info
+    case 13...16: return .warning
+    case 17...20: return .error
+    case 21...24: return .fatal
+    default:      return .unknown
+    }
+}
+
 /// Extracts the severity level from a log record by checking only known severity columns.
 func extractSeverity(from record: LogRecord, severityColumns: Set<String>) -> SeverityLevel {
     for col in severityColumns {
@@ -123,6 +146,14 @@ func extractSeverity(from record: LogRecord, severityColumns: Set<String>) -> Se
         case .string(let s): str = s
         case .int(let i):    str = String(i)
         default:             continue
+        }
+        // OpenTelemetry severity columns use a 1–24 scale that collides with
+        // RFC 5424's 0–7, so disambiguate numeric values by column name.
+        if otelSeverityColumns.contains(col.lowercased()),
+           let num = Int(str.trimmingCharacters(in: .whitespaces)) {
+            let level = parseOTelSeverityNumber(num)
+            if level != .unknown { return level }
+            continue
         }
         let level = parseSeverity(from: str)
         if level != .unknown { return level }

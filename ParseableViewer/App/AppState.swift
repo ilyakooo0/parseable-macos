@@ -151,6 +151,13 @@ final class AppState {
                 self.isConnected = false
                 self.client = nil
                 self.activeConnection = nil
+                // Clear stream-specific state so the sidebar doesn't keep showing
+                // the previous server's streams/selection after a failed connect.
+                self.streams = []
+                self.selectedStream = nil
+                self.streamLoadError = nil
+                self.serverAbout = nil
+                self.filters = []
             }
         }
 

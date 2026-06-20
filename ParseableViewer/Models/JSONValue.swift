@@ -66,7 +66,7 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
         case .null: return "null"
         case .bool(let v): return v ? "true" : "false"
         case .int(let v): return String(v)
-        case .double(let v): return String(v)
+        case .double(let v): return Self.jsonNumber(v)
         case .string(let v): return "\"\(Self.escapeJSONString(v))\""
         case .array(let items):
             return "[" + items.map { $0.compactJSON }.joined(separator: ",") + "]"
@@ -96,7 +96,7 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
         case .null: return "NULL"
         case .bool(let v): return v ? "true" : "false"
         case .int(let v): return String(v)
-        case .double(let v): return String(v)
+        case .double(let v): return v.isFinite ? String(v) : "NULL"
         case .string(let v): return "'\(v.replacingOccurrences(of: "'", with: "''"))'"
         case .array, .object:
             return "'\(exportString.replacingOccurrences(of: "'", with: "''"))'"
@@ -137,7 +137,7 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
         case .null: return "null"
         case .bool(let v): return v ? "true" : "false"
         case .int(let v): return String(v)
-        case .double(let v): return String(v)
+        case .double(let v): return Self.jsonNumber(v)
         case .string(let v): return "\"\(Self.escapeJSONString(v))\""
         case .array(let items):
             if items.isEmpty { return "[]" }
@@ -182,23 +182,43 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
         return result
     }
 
+    /// Stable ordering bucket per case so cross-type comparisons form a total
+    /// order. Integers and doubles share a bucket so they compare numerically.
+    private var typeRank: Int {
+        switch self {
+        case .null: return 0
+        case .bool: return 1
+        case .int, .double: return 2
+        case .string: return 3
+        case .array: return 4
+        case .object: return 5
+        }
+    }
+
     /// Type-aware comparison: numbers compare numerically, strings
     /// lexicographically, nulls sort first, bools sort false < true.
-    /// Cross-type comparisons fall back to displayString.
+    /// Different types are ordered by a stable type rank so that `<` is a strict
+    /// weak ordering consistent with `==` (the `Comparable` contract requires
+    /// that order-equivalent values are equal — a `displayString` fallback
+    /// violated this, e.g. `.int(5)` vs `.string("5")` both render "5").
     static func < (lhs: JSONValue, rhs: JSONValue) -> Bool {
+        if lhs.typeRank != rhs.typeRank { return lhs.typeRank < rhs.typeRank }
         switch (lhs, rhs) {
         case (.null, .null): return false
-        case (.null, _): return true
-        case (_, .null): return false
         case (.bool(let a), .bool(let b)): return !a && b
         case (.int(let a), .int(let b)): return a < b
         case (.double(let a), .double(let b)): return doubleLessThan(a, b)
-        case (.int(let a), .double(let b)): return doubleLessThan(Double(a), b)
-        case (.double(let a), .int(let b)): return doubleLessThan(a, Double(b))
+        case (.int(let a), .double(let b)): return intLessThanDouble(a, b)
+        case (.double(let a), .int(let b)): return doubleLessThanInt(a, b)
         case (.string(let a), .string(let b)):
             return a.localizedStandardCompare(b) == .orderedAscending
+        case (.array, .array), (.object, .object):
+            // Same rank, structured: equal values must not be ordered; otherwise
+            // use a deterministic serialization tiebreaker.
+            if lhs == rhs { return false }
+            return lhs.compactJSON < rhs.compactJSON
         default:
-            return lhs.displayString < rhs.displayString
+            return false
         }
     }
 
@@ -209,6 +229,36 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
         if a.isNaN { return false }
         if b.isNaN { return true }
         return a < b
+    }
+
+    /// Exact `Int < Double` comparison that avoids the precision loss of
+    /// `Double(Int)` for magnitudes beyond 2^53. NaN sorts after all numbers.
+    private static func intLessThanDouble(_ a: Int, _ b: Double) -> Bool {
+        if b.isNaN { return true }
+        if let bi = Int(exactly: b) { return a < bi }   // b is a whole, in-range number
+        return Double(a) < b                            // b is fractional / infinite / out of range
+    }
+
+    /// Exact `Double < Int` comparison, the mirror of `intLessThanDouble`.
+    /// NaN sorts after all numbers, so `NaN < anyInt` is false.
+    private static func doubleLessThanInt(_ a: Double, _ b: Int) -> Bool {
+        if a.isNaN { return false }
+        if let ai = Int(exactly: a) { return ai < b }   // a is a whole, in-range number
+        return a < Double(b)                            // a is fractional / infinite / out of range
+    }
+
+    /// Exact `Int == Double` test (true only when the double represents exactly
+    /// the same integer — `Int(exactly:)` is nil for fractional/out-of-range b).
+    private static func intEqualsDouble(_ a: Int, _ b: Double) -> Bool {
+        if let bi = Int(exactly: b) { return a == bi }
+        return false
+    }
+
+    /// JSON-safe rendering of a double: JSON has no NaN/Infinity literals, so
+    /// non-finite values serialize as `null` rather than the invalid `nan`/`inf`
+    /// that `String(_:)` would emit.
+    static func jsonNumber(_ v: Double) -> String {
+        v.isFinite ? String(v) : "null"
     }
 
     // MARK: - Equatable / Hashable
@@ -223,8 +273,8 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
         case (.bool(let a), .bool(let b)): return a == b
         case (.int(let a), .int(let b)): return a == b
         case (.double(let a), .double(let b)): return a == b
-        case (.int(let a), .double(let b)): return Double(a) == b
-        case (.double(let a), .int(let b)): return a == Double(b)
+        case (.int(let a), .double(let b)): return Self.intEqualsDouble(a, b)
+        case (.double(let a), .int(let b)): return Self.intEqualsDouble(b, a)
         case (.string(let a), .string(let b)): return a == b
         case (.array(let a), .array(let b)): return a == b
         case (.object(let a), .object(let b)): return a == b

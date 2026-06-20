@@ -199,7 +199,10 @@ final class QueryViewModel {
         guard !visible.isEmpty else { return }
 
         let newColumnList: String
-        if visible == columns {
+        // Use `*` whenever every column is visible, regardless of display order —
+        // reordering columns (a set-preserving permutation) must not pin the query
+        // to an explicit snapshot that hides newly-appearing fields on re-query.
+        if visible.count == columns.count && Set(visible) == Set(columns) {
             newColumnList = "*"
         } else {
             newColumnList = visible.map { Self.escapeSQLIdentifier($0) }.joined(separator: ", ")

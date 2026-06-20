@@ -193,7 +193,8 @@ final class ParseableClient: Sendable {
         if httpResponse.statusCode == 401 {
             throw ParseableError.unauthorized
         }
-        guard httpResponse.statusCode == 200 else {
+        // Accept any 2xx — a HEAD /liveness can legitimately return 204, etc.
+        guard (200...299).contains(httpResponse.statusCode) else {
             throw ParseableError.serverError(httpResponse.statusCode, "Health check failed")
         }
     }
@@ -316,20 +317,23 @@ final class ParseableClient: Sendable {
     // MARK: - Alerts
 
     func getAlerts(stream: String) async throws -> AlertConfig {
-        // Try new API first; only fall back to legacy per-stream endpoint on 404
+        // Try the new API first. Fall back to the legacy per-stream endpoint on
+        // ANY failure — a server without the new endpoint may answer with a 404,
+        // a 405, or a 200 carrying a differently-shaped body (a DecodingError,
+        // which is not a ParseableError and would otherwise escape this method).
+        let encoded = try Self.encodePathComponent(stream)
         do {
             let data = try await performRequest(method: "GET", path: "/api/v1/alerts")
             return try Self.jsonDecoder.decode(AlertConfig.self, from: data)
-        } catch let error as ParseableError {
-            if case .serverError(let code, _) = error, code == 404 {
-                // New endpoint not available, try legacy below
-            } else {
-                throw error
+        } catch let newEndpointError {
+            do {
+                let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/alert")
+                return try Self.jsonDecoder.decode(AlertConfig.self, from: data)
+            } catch {
+                // Legacy also failed — surface the original (more informative) error.
+                throw newEndpointError
             }
         }
-        let encoded = try Self.encodePathComponent(stream)
-        let data = try await performRequest(method: "GET", path: "/api/v1/logstream/\(encoded)/alert")
-        return try Self.jsonDecoder.decode(AlertConfig.self, from: data)
     }
 
     // MARK: - Retention

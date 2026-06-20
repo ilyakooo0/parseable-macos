@@ -321,7 +321,11 @@ final class LiveTailViewModel {
         let idealStart = lastTimestamp ?? now.addingTimeInterval(-30)
         let safeStart = now.addingTimeInterval(-90)
         let queryStart = min(idealStart, safeStart)
-        let sql = "SELECT * FROM \(QueryViewModel.escapeSQLIdentifier(stream)) ORDER BY p_timestamp DESC LIMIT 200"
+        // ORDER BY DESC keeps the newest rows when the page is capped, so a busy
+        // stream that exceeds the limit within one ~90 s window silently loses the
+        // oldest rows in that window. Keep a generous page to make that rare; this
+        // HTTP-polling tail can't match true gRPC streaming throughput regardless.
+        let sql = "SELECT * FROM \(QueryViewModel.escapeSQLIdentifier(stream)) ORDER BY p_timestamp DESC LIMIT 1000"
 
         do {
             let records = try await client.query(sql: sql, startTime: queryStart, endTime: now)
@@ -361,6 +365,11 @@ final class LiveTailViewModel {
                 if entries.count > maxEntries {
                     let excess = entries.count - maxEntries
                     droppedCount += excess
+                    // Entries are not globally time-sorted across polls (a late or
+                    // backfilled record appends after newer ones), so trimming by
+                    // array position could evict newer entries. Sort by timestamp
+                    // first so the suffix keeps the chronologically newest.
+                    entries.sort { $0.timestamp < $1.timestamp }
                     entries = Array(entries.suffix(maxEntries))
 
                     // Rebuild fingerprint set from stored values (no re-hashing)

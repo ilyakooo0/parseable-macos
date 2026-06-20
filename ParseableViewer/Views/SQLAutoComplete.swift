@@ -140,8 +140,10 @@ enum SQLCompletionProvider {
             }
         }
 
-        // Don't show the popup when the only match is an exact hit
-        if items.count == 1 && items[0].text.uppercased() == uppercasePrefix {
+        // Don't show the popup when the only match is an exact hit. Compare the
+        // insert text (unquoted), not the display text — a table's display text is
+        // wrapped in quotes (`"name"`) and would never match the bare prefix.
+        if items.count == 1 && items[0].insertText.uppercased() == uppercasePrefix {
             return ([], prefix, range)
         }
 
@@ -151,7 +153,10 @@ enum SQLCompletionProvider {
     // MARK: - Context Detection
 
     static func determineContext(text: String, position: Int) -> SQLCompletionContext {
-        let before = String(text.prefix(position))
+        // `position` is a UTF-16 offset (computed via NSString), so slice with
+        // NSString too. `String.prefix` counts grapheme clusters and would slice
+        // at the wrong place when non-BMP characters (e.g. emoji) precede it.
+        let before = (text as NSString).substring(to: position)
         let tokens = tokenize(before)
 
         guard let lastToken = tokens.last?.uppercased() else {
