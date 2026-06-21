@@ -96,7 +96,10 @@ final class ParseableClient: Sendable {
     private let authHeader: String
     private let cache = ResponseCache()
 
-    private static nonisolated(unsafe) let jsonDecoder = JSONDecoder()
+    // A fresh decoder per call. JSONDecoder.decode isn't documented as thread-safe,
+    // and these methods run concurrently (e.g. schema/stats/info fetched in parallel),
+    // so a single shared instance would be a data race. Constructing one is cheap.
+    private static var jsonDecoder: JSONDecoder { JSONDecoder() }
 
     private static nonisolated(unsafe) let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()

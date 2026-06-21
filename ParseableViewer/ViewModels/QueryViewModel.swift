@@ -402,6 +402,10 @@ final class QueryViewModel {
                 guard !Task.isCancelled else { return }
 
                 results = queryResults
+                // Drop any prior row selection: the new result set reassigns row
+                // identities, so a retained selectedLogEntry would either dangle or
+                // value-match an unrelated row, leaving a stale detail inspector.
+                selectedLogEntry = nil
                 queryDuration = CFAbsoluteTimeGetCurrent() - startTime
                 resultCount = results.count
 

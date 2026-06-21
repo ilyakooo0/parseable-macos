@@ -76,11 +76,20 @@ struct SettingsView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 4))
                             }
 
+                            Button {
+                                appState.editingConnection = connection
+                                appState.showConnectionSheet = true
+                            } label: {
+                                Image(systemName: "pencil")
+                            }
+                            .help("Edit connection")
+
                             Button(role: .destructive) {
                                 appState.removeConnection(connection)
                             } label: {
                                 Image(systemName: "trash")
                             }
+                            .help("Delete connection")
                         }
                         .padding(.vertical, 4)
                     }
