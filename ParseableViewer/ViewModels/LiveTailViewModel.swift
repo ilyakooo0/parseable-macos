@@ -150,8 +150,12 @@ final class LiveTailViewModel {
     }
 
     func addColumnFilter(column: String, value: JSONValue?, exclude: Bool) {
-        // Remove any existing filter on the same column with the same value
-        columnFilters.removeAll { $0.column == column && $0.value == value && $0.exclude == exclude }
+        // Remove any existing filter on the same column+value regardless of its
+        // exclude flag. Include (col = X) and exclude (col ≠ X) on the same value
+        // are mutually exclusive; without dropping the `exclude` match too, toggling
+        // include↔exclude stacks both and the AND'd filters match zero rows, so the
+        // tail silently empties.
+        columnFilters.removeAll { $0.column == column && $0.value == value }
         columnFilters.append(ColumnFilter(column: column, value: value, exclude: exclude))
         rebuildFilteredEntries()
     }
@@ -245,6 +249,9 @@ final class LiveTailViewModel {
         // leaving accumulated errors in place could trip the auto-stop threshold
         // sooner than the intended N consecutive failures. Matches start()'s reset.
         consecutiveErrors = 0
+        // Match start(): a freshly emptied tail has no last-poll timestamp, so any
+        // "last updated at…" indicator shouldn't keep showing the pre-clear time.
+        lastPollTime = nil
         columns = []
         columnOrder = []
         hiddenColumns = []

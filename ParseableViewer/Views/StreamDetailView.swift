@@ -157,7 +157,11 @@ struct StreamDetailView: View {
                     }
                     .padding()
                 }
-                .task(id: stream) {
+                // Key on the connection too: switching to a different server that
+                // exposes a same-named stream leaves `stream` unchanged, so without
+                // the connection id the task wouldn't refire and the old server's
+                // data would linger.
+                .task(id: "\(appState.activeConnection?.id.uuidString ?? "")|\(stream)") {
                     await loadData(stream: stream)
                 }
             } else {
@@ -172,6 +176,11 @@ struct StreamDetailView: View {
 
     private func loadData(stream: String) async {
         guard let client = appState.client else { return }
+        // Capture the connection this fetch belongs to. Two servers can expose a
+        // same-named stream, so guarding on the stream name alone would let a
+        // slow fetch write the previous server's data under the new server's
+        // stream after a server switch.
+        let connID = appState.activeConnection?.id
         isLoading = true
         errorMessage = nil
         // Clear previous stream's data so it isn't shown under the new header
@@ -205,8 +214,13 @@ struct StreamDetailView: View {
         // The manual Refresh/Retry buttons spawn detached Tasks that aren't tied to
         // `.task(id: stream)` cancellation, so a slow refresh for the old stream can
         // resolve after the user switched. Drop stale results instead of writing
-        // them under the new stream's header.
-        guard stream == appState.selectedStream else { return }
+        // them under the new stream's header. Also check the connection so a
+        // same-named stream on a different server doesn't accept the old server's
+        // data. Reset `isLoading` on the stale path or the spinner wedges forever.
+        guard stream == appState.selectedStream, connID == appState.activeConnection?.id else {
+            isLoading = false
+            return
+        }
 
         schema = newSchema
         stats = newStats

@@ -157,8 +157,11 @@ struct JSONValueView: View {
             Text(String(v))
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(Color(nsColor: .systemPurple))
-        case .double(let v):
-            Text(String(v))
+        case .double:
+            // Use displayString so whole-number doubles render as "3" (not "3.0"),
+            // scientific notation is avoided, and inf/nan map to "null" — matching
+            // the table cells, CSV/JSON export, and the rest of the app.
+            Text(value.displayString)
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(Color(nsColor: .systemPurple))
         case .string(let v):
