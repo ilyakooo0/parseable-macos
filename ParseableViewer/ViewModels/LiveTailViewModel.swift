@@ -278,9 +278,12 @@ final class LiveTailViewModel {
               let toIndex = columnOrder.firstIndex(of: targetColumn),
               fromIndex != toIndex else { return }
         let item = columnOrder.remove(at: fromIndex)
-        // Removing an element before the target shifts the target down by one, so
-        // inserting at the original `toIndex` would land the column past its target.
-        let adjusted = fromIndex < toIndex ? toIndex - 1 : toIndex
+        // Match the drop-indicator semantics: a rightward move (fromIndex < toIndex)
+        // lands the column *after* the target, a leftward move lands it *before*.
+        // After removing an earlier element the target shifts down by one, so
+        // inserting at `toIndex` lands after the target for rightward moves; for
+        // leftward moves the target is unshifted and `toIndex` lands before it.
+        let adjusted = toIndex
         columnOrder.insert(item, at: adjusted)
         saveColumnConfig()
     }

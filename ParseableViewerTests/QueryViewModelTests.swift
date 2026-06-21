@@ -259,6 +259,15 @@ final class QueryViewModelTests: XCTestCase {
         XCTAssertTrue(vm.sqlQuery.contains("WHERE \"level\" = 'error'"))
     }
 
+    func testAddColumnFilterParenthesizesExistingOr() {
+        // An existing top-level OR must be parenthesized before AND-ing the new
+        // condition so precedence is preserved.
+        let vm = QueryViewModel()
+        vm.sqlQuery = "SELECT * FROM \"logs\" WHERE \"a\" = 1 OR \"b\" = 2"
+        vm.addColumnFilter(column: "host", value: .string("web-1"), exclude: false)
+        XCTAssertTrue(vm.sqlQuery.contains("(\"a\" = 1 OR \"b\" = 2) AND \"host\" = 'web-1'"))
+    }
+
     func testAddColumnFilterIntValue() {
         let vm = QueryViewModel()
         vm.sqlQuery = "SELECT * FROM \"logs\""
@@ -346,6 +355,25 @@ final class QueryViewModelTests: XCTestCase {
         vm.columnOrder = ["a", "b", "c"]
         vm.moveColumn("c", to: "a")
         XCTAssertEqual(vm.columnOrder, ["c", "a", "b"])
+    }
+
+    func testMoveColumnRightwardLandsAfterTarget() {
+        // Rightward move (e.g. the "Move Right" context action, which passes the
+        // adjacent column as the target) must land the column *after* the target,
+        // not produce a no-op.
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+        vm.moveColumn("b", to: "c")
+        XCTAssertEqual(vm.columnOrder, ["a", "c", "b"])
+    }
+
+    func testMoveColumnLeftwardLandsBeforeTarget() {
+        let vm = QueryViewModel()
+        vm.columns = ["a", "b", "c"]
+        vm.columnOrder = ["a", "b", "c"]
+        vm.moveColumn("b", to: "a")
+        XCTAssertEqual(vm.columnOrder, ["b", "a", "c"])
     }
 
     func testMoveColumnByIndexSet() {

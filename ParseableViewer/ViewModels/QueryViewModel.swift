@@ -193,9 +193,12 @@ final class QueryViewModel {
               let toIndex = columnOrder.firstIndex(of: targetColumn),
               fromIndex != toIndex else { return }
         let item = columnOrder.remove(at: fromIndex)
-        // Removing an element before the target shifts the target down by one, so
-        // inserting at the original `toIndex` would land the column past its target.
-        let adjusted = fromIndex < toIndex ? toIndex - 1 : toIndex
+        // Match the drop-indicator semantics: a rightward move (fromIndex < toIndex)
+        // lands the column *after* the target, a leftward move lands it *before*.
+        // After removing an earlier element the target shifts down by one, so
+        // inserting at `toIndex` lands after the target for rightward moves; for
+        // leftward moves the target is unshifted and `toIndex` lands before it.
+        let adjusted = toIndex
         columnOrder.insert(item, at: adjusted)
         saveColumnConfig()
         updateSQLColumns()
@@ -627,6 +630,9 @@ final class QueryViewModel {
         var depth = 0
         var whereEnd: String.Index?
         var tailStart: String.Index?
+        // Track whether the existing WHERE body has a top-level OR — only then does
+        // AND-ing a new condition need parentheses to preserve precedence.
+        var bodyHasTopLevelOr = false
         for token in SQLTokenizer.tokenize(sql) {
             switch token.kind {
             case .leftParen:
@@ -638,6 +644,8 @@ final class QueryViewModel {
                     whereEnd = token.range.upperBound
                 } else if tailKeywords.contains(kw), tailStart == nil {
                     tailStart = token.range.lowerBound
+                } else if kw == "OR", whereEnd != nil, tailStart == nil {
+                    bodyHasTopLevelOr = true
                 }
             default:
                 break
@@ -646,16 +654,18 @@ final class QueryViewModel {
 
         if let whereEnd {
             // Parenthesize the existing WHERE body before AND-ing the new
-            // condition, otherwise an existing top-level OR silently changes
-            // meaning: `WHERE a = 1 OR b = 2` would become
+            // condition only when it has a top-level OR, otherwise the OR
+            // silently changes meaning: `WHERE a = 1 OR b = 2` would become
             // `WHERE a = 1 OR b = 2 AND c = 3`, which SQL binds as
             // `a = 1 OR (b = 2 AND c = 3)` rather than the intended
-            // `(a = 1 OR b = 2) AND c = 3`.
+            // `(a = 1 OR b = 2) AND c = 3`. A body without a top-level OR is
+            // left un-parenthesized so simple filters stay readable.
             let bodyEnd = tailStart ?? sql.endIndex
             let head = sql[..<whereEnd]
             let body = sql[whereEnd..<bodyEnd].trimmingCharacters(in: .whitespacesAndNewlines)
             let tail = sql[bodyEnd...].trimmingCharacters(in: .whitespacesAndNewlines)
-            sql = "\(head) (\(body)) AND \(condition)"
+            let wrappedBody = bodyHasTopLevelOr ? "(\(body))" : body
+            sql = "\(head) \(wrappedBody) AND \(condition)"
             if !tail.isEmpty {
                 sql += " \(tail)"
             }

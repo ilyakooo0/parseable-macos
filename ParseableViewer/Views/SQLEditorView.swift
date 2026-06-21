@@ -221,6 +221,12 @@ struct SQLEditorView: NSViewRepresentable {
             if item.kind == .table, wordStart > 0,
                nsText.character(at: wordStart - 1) == 0x22 {
                 wordStart -= 1
+                // Mirror on the trailing side: if a matching closing quote follows
+                // the word (caret inside an already-quoted `FROM "my|"`), absorb it
+                // too so the inserted `"name"` doesn't leave a dangling `"name""`.
+                if wordEnd < nsText.length, nsText.character(at: wordEnd) == 0x22 {
+                    wordEnd += 1
+                }
             }
 
             let replaceRange = NSRange(location: wordStart, length: wordEnd - wordStart)

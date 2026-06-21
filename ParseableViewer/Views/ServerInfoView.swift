@@ -126,6 +126,13 @@ struct ServerInfoView: View {
         // Key on the active connection so switching (or reconnecting to a
         // different) server reloads instead of showing the previous server's info.
         .task(id: appState.activeConnection?.id) {
+            // Drop the previous server's details immediately on switch so they
+            // aren't shown while the newly-selected server's info loads. (Local
+            // @State persists across the .task id change, so it must be cleared
+            // explicitly.) The manual Refresh button keeps the current values.
+            about = nil
+            isHealthy = false
+            errorMessage = nil
             await loadInfo()
         }
     }

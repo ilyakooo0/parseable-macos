@@ -141,6 +141,10 @@ final class AppState {
         if activeConnection?.id != connection.id {
             selectedStream = nil
             streamLoadError = nil
+            // Drop the previous server's cached `about` so views seeding from it
+            // (ServerInfoView) don't paint the old server's details while the new
+            // one loads. It's repopulated below once the new server responds.
+            serverAbout = nil
             // Reset the sidebar search filter and tab too: a stale filter would
             // silently hide the new server's streams, and a stream-specific tab
             // would have no valid selection behind it.

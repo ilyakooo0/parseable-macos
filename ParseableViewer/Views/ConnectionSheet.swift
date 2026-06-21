@@ -123,6 +123,13 @@ struct ConnectionSheet: View {
                 .accessibilityLabel("Test connection")
 
                 Button("Cancel") {
+                    // A new connection is persisted on the first save so a retry
+                    // updates it in place. If the user abandons it via Cancel
+                    // (e.g. after a failed connect), remove that never-connected
+                    // entry so it doesn't linger in the sidebar.
+                    if let created = createdConnection {
+                        appState.removeConnection(created)
+                    }
                     password = ""
                     dismiss()
                 }
