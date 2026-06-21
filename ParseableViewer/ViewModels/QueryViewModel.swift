@@ -584,6 +584,12 @@ final class QueryViewModel {
         filterTask?.cancel()
         filterTask = nil
 
+        // The in-flight query was cancelled above, so its task returns via the
+        // CancellationError path and never reaches `isLoading = false`. Reset it
+        // here, otherwise deselecting the stream / disconnecting (which calls
+        // clearResults with no follow-up query) leaves the spinner stuck on.
+        isLoading = false
+
         results = []
         columns = []
         columnOrder = []
@@ -639,10 +645,19 @@ final class QueryViewModel {
         }
 
         if let whereEnd {
-            if let tailStart, tailStart > whereEnd {
-                sql.insert(contentsOf: "AND \(condition) ", at: tailStart)
-            } else {
-                sql += " AND \(condition)"
+            // Parenthesize the existing WHERE body before AND-ing the new
+            // condition, otherwise an existing top-level OR silently changes
+            // meaning: `WHERE a = 1 OR b = 2` would become
+            // `WHERE a = 1 OR b = 2 AND c = 3`, which SQL binds as
+            // `a = 1 OR (b = 2 AND c = 3)` rather than the intended
+            // `(a = 1 OR b = 2) AND c = 3`.
+            let bodyEnd = tailStart ?? sql.endIndex
+            let head = sql[..<whereEnd]
+            let body = sql[whereEnd..<bodyEnd].trimmingCharacters(in: .whitespacesAndNewlines)
+            let tail = sql[bodyEnd...].trimmingCharacters(in: .whitespacesAndNewlines)
+            sql = "\(head) (\(body)) AND \(condition)"
+            if !tail.isEmpty {
+                sql += " \(tail)"
             }
         } else if let tailStart {
             sql.insert(contentsOf: "WHERE \(condition) ", at: tailStart)

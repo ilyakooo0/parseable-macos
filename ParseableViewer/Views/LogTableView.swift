@@ -717,11 +717,17 @@ struct LogRowView: View {
                         }
                         if let onCellFilter {
                             Divider()
+                            // Normalize a null cell to `nil` so this produces an
+                            // IS NULL / IS NOT NULL filter, matching the header
+                            // "Filter by Value" path. Passing `.null` straight
+                            // through would build an `= null` value filter, which
+                            // the live-tail in-memory matcher treats differently.
+                            let filterValue: JSONValue? = value == .null ? nil : value
                             Button("Filter by This Value") {
-                                onCellFilter(column, value, false)
+                                onCellFilter(column, filterValue, false)
                             }
                             Button("Exclude This Value") {
-                                onCellFilter(column, value, true)
+                                onCellFilter(column, filterValue, true)
                             }
                         }
                     }

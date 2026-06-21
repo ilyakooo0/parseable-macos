@@ -356,7 +356,14 @@ final class ParseableClient: Sendable {
             // per-stream. Scope the modern result to the requested stream via each
             // alert's `datasets` membership so every stream doesn't show the same
             // unfiltered global list.
-            let scoped = config.alerts?.filter { $0.datasets?.contains(stream) ?? false }
+            let scoped = config.alerts?.filter { rule in
+                // A missing or empty `datasets` means the alert isn't scoped to
+                // specific streams (the summary endpoint frequently omits it), so
+                // treat it as global and surface it for every stream. Only exclude
+                // an alert when it explicitly lists datasets, none of which match.
+                guard let datasets = rule.datasets, !datasets.isEmpty else { return true }
+                return datasets.contains(stream)
+            }
             return AlertConfig(alerts: scoped, version: config.version)
         } catch let newEndpointError {
             // An auth failure won't be fixed by hitting the legacy endpoint (it

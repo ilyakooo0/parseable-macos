@@ -215,6 +215,14 @@ struct SQLEditorView: NSViewRepresentable {
                 }
             }
 
+            // A table completion carries its own quotes; absorb a directly
+            // preceding opening quote the user typed (e.g. `FROM "my`) so the
+            // inserted `"name"` replaces it instead of producing `""name"`.
+            if item.kind == .table, wordStart > 0,
+               nsText.character(at: wordStart - 1) == 0x22 {
+                wordStart -= 1
+            }
+
             let replaceRange = NSRange(location: wordStart, length: wordEnd - wordStart)
 
             isInsertingCompletion = true

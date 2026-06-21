@@ -87,6 +87,15 @@ struct SchemaField: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
+/// Formats a byte count that may arrive from the server as a fractional or
+/// out-of-range Double. `Int64(_:)` from a `Double` is a *trapping* conversion —
+/// it crashes on NaN, infinity, or values outside `Int64`'s range — so a valid
+/// but huge JSON number like `1e30` would crash the whole decode. Guard first.
+private func formatByteSize(_ value: Double) -> String? {
+    guard value.isFinite, value >= 0, value < 9.223372036854776e18 else { return nil }
+    return ByteCountFormatter.string(fromByteCount: Int64(value), countStyle: .file)
+}
+
 struct StreamStats: Codable, Sendable {
     let ingestion: IngestionStats?
     let storage: StorageStats?
@@ -111,7 +120,7 @@ struct StreamStats: Codable, Sendable {
             } else if let n = try? container.decode(Int.self, forKey: .size) {
                 self.size = ByteCountFormatter.string(fromByteCount: Int64(n), countStyle: .file)
             } else if let d = try? container.decode(Double.self, forKey: .size) {
-                self.size = ByteCountFormatter.string(fromByteCount: Int64(d), countStyle: .file)
+                self.size = formatByteSize(d)
             } else {
                 self.size = nil
             }
@@ -120,7 +129,7 @@ struct StreamStats: Codable, Sendable {
             } else if let n = try? container.decode(Int.self, forKey: .lifetime_size) {
                 self.lifetime_size = ByteCountFormatter.string(fromByteCount: Int64(n), countStyle: .file)
             } else if let d = try? container.decode(Double.self, forKey: .lifetime_size) {
-                self.lifetime_size = ByteCountFormatter.string(fromByteCount: Int64(d), countStyle: .file)
+                self.lifetime_size = formatByteSize(d)
             } else {
                 self.lifetime_size = nil
             }
@@ -144,7 +153,7 @@ struct StreamStats: Codable, Sendable {
             } else if let n = try? container.decode(Int.self, forKey: .size) {
                 self.size = ByteCountFormatter.string(fromByteCount: Int64(n), countStyle: .file)
             } else if let d = try? container.decode(Double.self, forKey: .size) {
-                self.size = ByteCountFormatter.string(fromByteCount: Int64(d), countStyle: .file)
+                self.size = formatByteSize(d)
             } else {
                 self.size = nil
             }
@@ -153,7 +162,7 @@ struct StreamStats: Codable, Sendable {
             } else if let n = try? container.decode(Int.self, forKey: .lifetime_size) {
                 self.lifetime_size = ByteCountFormatter.string(fromByteCount: Int64(n), countStyle: .file)
             } else if let d = try? container.decode(Double.self, forKey: .lifetime_size) {
-                self.lifetime_size = ByteCountFormatter.string(fromByteCount: Int64(d), countStyle: .file)
+                self.lifetime_size = formatByteSize(d)
             } else {
                 self.lifetime_size = nil
             }

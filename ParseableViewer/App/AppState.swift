@@ -266,14 +266,15 @@ final class AppState {
             connections[index] = connection
             ConnectionStore.saveConnections(connections)
         }
-        // If the active connection was edited, refresh the displayed metadata and
-        // rebuild the live client so subsequent requests use the new URL/credentials
-        // instead of the stale ones captured when the client was first created.
+        // If the active connection was edited, its URL or credentials may now point
+        // at a different server, so swapping the client alone isn't enough — the
+        // displayed streams/selection/server-info would be stale and queries would
+        // 404. Reconnect end to end (re-validate health, reload streams/filters/
+        // about). Clear the stream selection first so a now-missing stream doesn't
+        // keep driving detail-tab requests during the reconnect.
         if activeConnection?.id == connection.id {
-            activeConnection = connection
-            if let newClient = try? ParseableClient(connection: connection) {
-                client = newClient
-            }
+            selectedStream = nil
+            Task { await connect(to: connection) }
         }
     }
 

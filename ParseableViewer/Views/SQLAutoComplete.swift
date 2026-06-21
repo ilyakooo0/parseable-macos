@@ -100,13 +100,22 @@ enum SQLCompletionProvider {
         }
 
         let prefix = nsText.substring(with: NSRange(location: wordStart, length: cursorPosition - wordStart))
-        let range = NSRange(location: wordStart, length: wordEnd - wordStart)
 
         guard !prefix.isEmpty else {
-            return ([], "", range)
+            return ([], "", NSRange(location: wordStart, length: wordEnd - wordStart))
         }
 
         let context = determineContext(text: text, position: wordStart)
+
+        // A table completion supplies its own surrounding quotes. If the user has
+        // already typed an opening double-quote (common for stream names with
+        // spaces, e.g. `FROM "my`), absorb it into the replacement range so the
+        // inserted `"name"` replaces the stray quote instead of producing `""name"`.
+        var replaceStart = wordStart
+        if case .tableRef = context, wordStart > 0, nsText.character(at: wordStart - 1) == 0x22 {
+            replaceStart -= 1
+        }
+        let range = NSRange(location: replaceStart, length: wordEnd - replaceStart)
         let uppercasePrefix = prefix.uppercased()
 
         var items: [SQLCompletionItem] = []

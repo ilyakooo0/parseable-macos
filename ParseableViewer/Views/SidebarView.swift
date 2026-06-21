@@ -58,11 +58,18 @@ struct SidebarView: View {
                                     }
                                     Divider()
                                     Button("Delete...", role: .destructive) {
-                                        streamToDelete = stream.name
+                                        // Capture the target so a slower stats fetch
+                                        // for a *previously* clicked stream can't write
+                                        // its detail (or raise the confirm) against the
+                                        // stream the user has since selected — which
+                                        // would show the wrong stats on a destructive
+                                        // confirmation.
+                                        let target = stream.name
+                                        streamToDelete = target
                                         deleteStreamDetail = nil
                                         Task {
                                             if let client = appState.client,
-                                               let stats = try? await client.getStreamStats(stream: stream.name) {
+                                               let stats = try? await client.getStreamStats(stream: target) {
                                                 var parts: [String] = []
                                                 if let count = stats.ingestion?.lifetime_count {
                                                     parts.append("\(count) total records ingested")
@@ -70,11 +77,13 @@ struct SidebarView: View {
                                                 if let size = stats.storage?.lifetime_size ?? stats.storage?.size {
                                                     parts.append("\(size) storage used")
                                                 }
-                                                if !parts.isEmpty {
+                                                if !parts.isEmpty, streamToDelete == target {
                                                     deleteStreamDetail = parts.joined(separator: ", ")
                                                 }
                                             }
-                                            showDeleteConfirm = true
+                                            if streamToDelete == target {
+                                                showDeleteConfirm = true
+                                            }
                                         }
                                     }
                                 }
