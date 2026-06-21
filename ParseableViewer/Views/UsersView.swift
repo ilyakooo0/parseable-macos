@@ -72,22 +72,33 @@ struct UsersView: View {
                 }
             }
         }
-        .task {
+        // Key on the active connection so switching (or reconnecting to a
+        // different) server reloads instead of showing the previous server's users.
+        .task(id: appState.activeConnection?.id) {
             await loadUsers()
         }
     }
 
     private func loadUsers() async {
         guard let client = appState.client else { return }
+        let connID = appState.activeConnection?.id
         isLoading = true
         errorMessage = nil
 
+        let loaded: [UserInfo]?
+        let loadError: String?
         do {
-            users = try await client.listUsers()
+            loaded = try await client.listUsers()
+            loadError = nil
         } catch {
-            errorMessage = ParseableError.userFriendlyMessage(for: error)
+            loaded = nil
+            loadError = ParseableError.userFriendlyMessage(for: error)
         }
 
+        // Drop results if the active connection changed while awaiting.
+        guard connID == appState.activeConnection?.id else { return }
+        if let loaded { users = loaded }
+        errorMessage = loadError
         isLoading = false
     }
 }

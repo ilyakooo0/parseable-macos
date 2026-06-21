@@ -156,9 +156,10 @@ struct SidebarView: View {
             TextField("Stream name", text: $newStreamName)
             Button("Create") {
                 let name = newStreamName.trimmingCharacters(in: .whitespaces)
-                guard !name.isEmpty else { return }
+                guard !name.isEmpty else { newStreamName = ""; return }
                 if let error = Self.validateStreamName(name) {
                     appState.showErrorMessage(error)
+                    newStreamName = ""
                     return
                 }
                 Task {

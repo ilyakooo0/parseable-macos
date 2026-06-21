@@ -338,11 +338,17 @@ final class ParseableClient: Sendable {
             let config = try Self.jsonDecoder.decode(AlertConfig.self, from: data)
             // AlertConfig decodes leniently (every field via try?), so a 200 with
             // an unexpected body yields an empty, non-throwing config rather than
-            // a DecodingError. Treat an empty result as "new endpoint unsupported"
-            // and fall through to the legacy per-stream endpoint instead of
-            // silently reporting no alerts.
+            // a DecodingError — indistinguishable from a server that genuinely has
+            // no alerts. Only fall back to the legacy per-stream endpoint when the
+            // body ISN'T a recognizable alerts container (a top-level array, or an
+            // object carrying an "alerts" key). When it is, an empty result is
+            // authoritative and must not be replaced with unrelated legacy alerts.
             if config.alerts?.isEmpty ?? true {
-                if let legacy = try? await legacyAlerts(), !(legacy.alerts?.isEmpty ?? true) {
+                let json = try? JSONSerialization.jsonObject(with: data)
+                let isRecognizedShape = json is [Any]
+                    || (json as? [String: Any])?["alerts"] != nil
+                if !isRecognizedShape,
+                   let legacy = try? await legacyAlerts(), !(legacy.alerts?.isEmpty ?? true) {
                     return legacy
                 }
             }

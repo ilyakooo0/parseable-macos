@@ -13,11 +13,16 @@ final class QueryViewModel {
     }
     var results: [LogRecord] = [] {
         didSet {
-            // Show all results immediately
-            filteredResults = results
             // Build search texts asynchronously
             searchTextTask?.cancel()
             cachedSearchTexts = []
+            // Apply the current filter immediately using the inline fallback path
+            // (the cache was just invalidated). Calling updateFilteredResults()
+            // rather than `filteredResults = results` avoids briefly showing
+            // unfiltered rows while a filter is active, and avoids leaving a stale
+            // unfiltered set if the async rebuild below is cancelled before it
+            // re-applies the filter.
+            updateFilteredResults()
             let snapshot = results
             searchTextTask = Task {
                 let texts = snapshot.map { record in
@@ -370,6 +375,11 @@ final class QueryViewModel {
                 try Task.checkCancellation()
                 let queryResults = try await client.query(sql: sql, startTime: startDate, endTime: endDate)
                 try Task.checkCancellation()
+                // Re-check before committing. A superseding executeQuery() cancels
+                // this task (queryTask?.cancel()) before starting the next one, but
+                // cancellation landing just after the check above would otherwise
+                // let a stale query clobber the newer one's results/columns.
+                guard !Task.isCancelled else { return }
 
                 results = queryResults
                 queryDuration = CFAbsoluteTimeGetCurrent() - startTime

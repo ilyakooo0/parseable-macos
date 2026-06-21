@@ -34,6 +34,9 @@ final class LiveTailViewModel {
     nonisolated(unsafe) private var timer: Timer?
     private var lastTimestamp: Date?
     private var seenFingerprints: Set<String> = []
+    /// Insertion-ordered mirror of `seenFingerprints` (oldest first), used to
+    /// evict the least-recently-seen fingerprints when the set is trimmed.
+    private var seenFingerprintOrder: [String] = []
     /// Upper bound on the dedup fingerprint set. Kept well above `maxEntries` so
     /// fingerprints of recently-evicted entries survive long enough to suppress
     /// duplicates that reappear inside the next poll's look-back window, while
@@ -181,6 +184,7 @@ final class LiveTailViewModel {
         errorMessage = nil
         entries = []
         seenFingerprints = []
+        seenFingerprintOrder = []
         allKnownKeys = []
         droppedCount = 0
         consecutiveErrors = 0
@@ -218,6 +222,7 @@ final class LiveTailViewModel {
         pollGeneration += 1
         entries = []
         seenFingerprints = []
+        seenFingerprintOrder = []
         // Advance the look-back floor to now: without this, the next poll queries
         // from the old `lastTimestamp` with an empty fingerprint set and re-inserts
         // every just-cleared record still inside the ~90 s window, repopulating the
@@ -428,6 +433,7 @@ final class LiveTailViewModel {
             var newEntries: [LiveTailEntry] = []
             for entry in candidateEntries {
                 if seenFingerprints.insert(entry.fingerprint).inserted {
+                    seenFingerprintOrder.append(entry.fingerprint)
                     newEntries.append(entry)
                 }
             }
@@ -452,10 +458,22 @@ final class LiveTailViewModel {
                     // duplicate. Keep the full seen-set so dedup stays correct;
                     // it is bounded below to avoid unbounded growth.
                     if seenFingerprints.count > maxSeenFingerprints {
-                        // Retain the fingerprints of everything still buffered
-                        // (those are the ones that matter for dedup) and discard
-                        // the older surplus.
-                        seenFingerprints = Set(entries.map { $0.fingerprint })
+                        // Evict the OLDEST surplus fingerprints by insertion order,
+                        // not by what's currently buffered. Collapsing to only the
+                        // buffered set would drop recently-evicted fingerprints that
+                        // still fall inside the next poll's ~90 s look-back window,
+                        // re-admitting those records as duplicates. Keeping the
+                        // most-recently-seen tail preserves a full window of evicted
+                        // fingerprints. Buffered fingerprints are always retained so
+                        // a re-fetch of a buffered record stays deduplicated.
+                        let overflow = seenFingerprints.count - maxSeenFingerprints
+                        let buffered = Set(entries.map { $0.fingerprint })
+                        let toDrop = Set(seenFingerprintOrder.prefix(overflow))
+                            .subtracting(buffered)
+                        if !toDrop.isEmpty {
+                            seenFingerprints.subtract(toDrop)
+                            seenFingerprintOrder.removeAll { toDrop.contains($0) }
+                        }
                     }
                 }
 

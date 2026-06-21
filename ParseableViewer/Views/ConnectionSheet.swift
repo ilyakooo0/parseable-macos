@@ -114,7 +114,12 @@ struct ConnectionSheet: View {
                 Button("Test Connection") {
                     testConnection()
                 }
-                .disabled(url.isEmpty || username.isEmpty || isTesting || urlValidationError != nil)
+                .disabled(
+                    url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || isTesting
+                        || urlValidationError != nil
+                )
                 .accessibilityLabel("Test connection")
 
                 Button("Cancel") {

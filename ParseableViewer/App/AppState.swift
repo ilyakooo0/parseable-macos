@@ -266,6 +266,15 @@ final class AppState {
             connections[index] = connection
             ConnectionStore.saveConnections(connections)
         }
+        // If the active connection was edited, refresh the displayed metadata and
+        // rebuild the live client so subsequent requests use the new URL/credentials
+        // instead of the stale ones captured when the client was first created.
+        if activeConnection?.id == connection.id {
+            activeConnection = connection
+            if let newClient = try? ParseableClient(connection: connection) {
+                client = newClient
+            }
+        }
     }
 
     @MainActor

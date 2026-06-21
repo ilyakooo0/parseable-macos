@@ -123,13 +123,16 @@ struct ServerInfoView: View {
             }
             .padding()
         }
-        .task {
+        // Key on the active connection so switching (or reconnecting to a
+        // different) server reloads instead of showing the previous server's info.
+        .task(id: appState.activeConnection?.id) {
             await loadInfo()
         }
     }
 
     private func loadInfo() async {
         guard let client = appState.client else { return }
+        let connID = appState.activeConnection?.id
         isLoading = true
         errorMessage = nil
         // Seed from the app-wide cache so first load isn't blank, but never fall
@@ -139,19 +142,29 @@ struct ServerInfoView: View {
         async let healthCheck: Void = client.checkHealth()
         async let aboutResult = client.getAbout()
 
+        let healthy: Bool
         do {
             try await healthCheck
-            isHealthy = true
+            healthy = true
         } catch {
-            isHealthy = false
+            healthy = false
         }
+        let aboutValue: ServerAbout?
+        let aboutError: String?
         do {
-            about = try await aboutResult
+            aboutValue = try await aboutResult
+            aboutError = nil
         } catch {
-            about = nil
-            errorMessage = ParseableError.userFriendlyMessage(for: error)
+            aboutValue = nil
+            aboutError = ParseableError.userFriendlyMessage(for: error)
         }
 
+        // Drop results if the active connection changed while awaiting, so a slow
+        // load for the previous server can't overwrite the current one's state.
+        guard connID == appState.activeConnection?.id else { return }
+        isHealthy = healthy
+        about = aboutValue
+        errorMessage = aboutError
         isLoading = false
     }
 }
