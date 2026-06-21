@@ -84,6 +84,10 @@ struct UsersView: View {
         let connID = appState.activeConnection?.id
         isLoading = true
         errorMessage = nil
+        // Clear the previous server's list up front so it can't briefly show through
+        // after a switch (e.g. on the stale-guard early-return below). Matches the
+        // sibling views (AlertsView clears alertConfig, ServerInfoView clears about).
+        users = []
 
         let loaded: [UserInfo]?
         let loadError: String?

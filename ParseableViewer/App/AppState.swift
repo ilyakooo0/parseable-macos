@@ -287,23 +287,26 @@ final class AppState {
         // If the active connection was edited, its URL or credentials may now point
         // at a different server, so swapping the client alone isn't enough — the
         // displayed streams/selection/server-info would be stale and queries would
-        // 404. Reconnect end to end (re-validate health, reload streams/filters/
-        // about). Clear the stream selection first so a now-missing stream doesn't
-        // keep driving detail-tab requests during the reconnect.
+        // 404. The caller is responsible for the actual reconnect (re-validate
+        // health, reload streams/filters/about); we only clear the now-possibly-
+        // stale UI state here, since `performConnect` skips its own cleanup when the
+        // connection id is unchanged. We must NOT also spawn a connect here: the
+        // sole caller (ConnectionSheet.saveAndConnect) already connects right after,
+        // and a second connect would run two full reconnects and flash the UI twice.
         if activeConnection?.id == connection.id {
-            // `performConnect` skips its stale-state cleanup because the id is
-            // unchanged, but the edited URL/credentials may point at a different
-            // server. Clear the stream-specific UI state here so a leftover sidebar
-            // search filter doesn't hide the new server's streams and a
-            // stream-specific tab doesn't linger with no valid selection.
+            // Clear the stream-specific UI state so a leftover sidebar search filter
+            // doesn't hide the new server's streams and a stream-specific tab
+            // doesn't linger with no valid selection.
             selectedStream = nil
             streamSearchText = ""
             currentTab = .query
-            // Drop the previous server's cached `about` too — performConnect skips
-            // its own clear (id unchanged), so without this ServerInfoView keeps
-            // painting the old server's version/storage until the new /about lands.
+            // Drop the previous server's cached `about`, stream list, and filters —
+            // performConnect skips its own clear (id unchanged), so without this the
+            // sidebar keeps rendering server A's streams/filters and ServerInfoView
+            // paints the old version/storage until the new server's responses land.
             serverAbout = nil
-            Task { await connect(to: connection) }
+            streams = []
+            filters = []
         }
     }
 

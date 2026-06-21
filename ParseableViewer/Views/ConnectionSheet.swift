@@ -43,6 +43,7 @@ struct ConnectionSheet: View {
                 TextField("Name:", text: $name)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel("Connection name")
+                    .onChange(of: name) { _, _ in testResult = nil }
 
                 TextField("Server URL:", text: $url)
                     .textFieldStyle(.roundedBorder)
