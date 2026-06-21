@@ -667,8 +667,16 @@ final class QueryViewModel {
             let head = sql[..<whereEnd]
             let body = sql[whereEnd..<bodyEnd].trimmingCharacters(in: .whitespacesAndNewlines)
             let tail = sql[bodyEnd...].trimmingCharacters(in: .whitespacesAndNewlines)
-            let wrappedBody = bodyHasTopLevelOr ? "(\(body))" : body
-            sql = "\(head) \(wrappedBody) AND \(condition)"
+            // An empty WHERE body (e.g. a half-written `... WHERE` with no
+            // condition yet, or `WHERE` immediately followed by ORDER/GROUP/
+            // LIMIT) would otherwise produce `WHERE  AND <condition>` — a
+            // dangling AND with no left operand. Drop the AND in that case.
+            if body.isEmpty {
+                sql = "\(head) \(condition)"
+            } else {
+                let wrappedBody = bodyHasTopLevelOr ? "(\(body))" : body
+                sql = "\(head) \(wrappedBody) AND \(condition)"
+            }
             if !tail.isEmpty {
                 sql += " \(tail)"
             }

@@ -175,7 +175,11 @@ final class ParseableClient: Sendable {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+            // A proxy/load balancer can answer with a multi-KB HTML body; surfacing
+            // it verbatim floods the error alert. Trim and cap to a readable prefix.
+            let raw = (String(data: data, encoding: .utf8) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let message = raw.isEmpty ? "Unknown error" : String(raw.prefix(500))
             throw ParseableError.serverError(httpResponse.statusCode, message)
         }
 
@@ -304,6 +308,10 @@ final class ParseableClient: Sendable {
             sniff = sniff.dropFirst(3)
         }
         let firstByte = sniff.first(where: { $0 != 0x20 && $0 != 0x0A && $0 != 0x0D && $0 != 0x09 })
+        // A body of only whitespace/BOM carries no records — treat it like an
+        // empty response rather than feeding it to the array decoder, which would
+        // throw a confusing "Unexpected query response format".
+        guard let firstByte else { return [] }
         if firstByte == 0x7B { // '{'
             do {
                 return try Self.jsonDecoder.decode(QueryResponse.self, from: responseData).records

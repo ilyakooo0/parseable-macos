@@ -292,6 +292,10 @@ final class AppState {
             selectedStream = nil
             streamSearchText = ""
             currentTab = .query
+            // Drop the previous server's cached `about` too — performConnect skips
+            // its own clear (id unchanged), so without this ServerInfoView keeps
+            // painting the old server's version/storage until the new /about lands.
+            serverAbout = nil
             Task { await connect(to: connection) }
         }
     }

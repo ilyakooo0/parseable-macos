@@ -218,14 +218,42 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
             // the same fallback `LogStream.<` already applies.
             let order = a.localizedStandardCompare(b)
             return order == .orderedAscending || (order == .orderedSame && a < b)
-        case (.array, .array), (.object, .object):
-            // Same rank, structured: equal values must not be ordered; otherwise
-            // use a deterministic serialization tiebreaker.
-            if lhs == rhs { return false }
-            return lhs.compactJSON < rhs.compactJSON
+        case (.array(let a), .array(let b)):
+            return arrayLessThan(a, b)
+        case (.object(let a), .object(let b)):
+            return objectLessThan(a, b)
         default:
             return false
         }
+    }
+
+    /// Lexicographic order over array elements using the element-level `<`/`==`.
+    /// A serialized-string tiebreaker (`compactJSON < compactJSON`) was wrong:
+    /// `.int(1) == .double(1.0)` are equal yet serialize as `1` vs `1.0`, so two
+    /// non-equal values could share a serialization (or two equal ones differ),
+    /// breaking the strict-weak-ordering `Comparable` requires. Comparing
+    /// elements directly stays consistent with `==` (arrays are equal iff same
+    /// length and equal elements).
+    private static func arrayLessThan(_ a: [JSONValue], _ b: [JSONValue]) -> Bool {
+        for (x, y) in zip(a, b) where x != y {
+            return x < y
+        }
+        return a.count < b.count
+    }
+
+    /// Deterministic order over objects: compare key/value pairs in sorted-key
+    /// order. Independent of dictionary iteration order and consistent with `==`
+    /// (objects are equal iff the same keys map to equal values).
+    private static func objectLessThan(_ a: [String: JSONValue], _ b: [String: JSONValue]) -> Bool {
+        let aKeys = a.keys.sorted()
+        let bKeys = b.keys.sorted()
+        for (ak, bk) in zip(aKeys, bKeys) {
+            if ak != bk { return ak < bk }
+            // Force-unwrap is safe: ak/bk come from each dictionary's own keys.
+            let av = a[ak]!, bv = b[bk]!
+            if av != bv { return av < bv }
+        }
+        return aKeys.count < bKeys.count
     }
 
     /// Total ordering for doubles that keeps `sort()` from trapping on NaN
