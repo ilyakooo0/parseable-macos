@@ -41,12 +41,25 @@ struct ServerInfoView: View {
                 // Health status
                 GroupBox("Health") {
                     HStack {
-                        Circle()
-                            .fill(isHealthy ? .green : .red)
-                            .frame(width: 12, height: 12)
-                            .accessibilityLabel(isHealthy ? "Healthy" : "Unhealthy")
-                        Text(isHealthy ? "Healthy" : "Unhealthy")
-                            .fontWeight(.medium)
+                        // While the check is in flight, show a neutral state
+                        // rather than the default `isHealthy == false`, which
+                        // otherwise flashes a red "Unhealthy" dot on every
+                        // connection switch before the result resolves.
+                        if isLoading {
+                            Circle()
+                                .fill(.gray)
+                                .frame(width: 12, height: 12)
+                                .accessibilityLabel("Checking health")
+                            Text("Checking…")
+                                .fontWeight(.medium)
+                        } else {
+                            Circle()
+                                .fill(isHealthy ? .green : .red)
+                                .frame(width: 12, height: 12)
+                                .accessibilityLabel(isHealthy ? "Healthy" : "Unhealthy")
+                            Text(isHealthy ? "Healthy" : "Unhealthy")
+                                .fontWeight(.medium)
+                        }
                         Spacer()
                     }
                     .padding(8)

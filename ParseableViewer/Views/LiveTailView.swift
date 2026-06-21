@@ -311,10 +311,15 @@ struct LiveTailView: View {
         // wake after its 150ms delay and overwrite the unsorted result with
         // stale sorted entries.
         liveTailSortTask?.cancel()
+        // Severity is keyed by entry id and is independent of row order, so
+        // publish it synchronously in both paths. Deferring it into the
+        // debounced sort task (as the sorted path used to) left rows tinted from
+        // the previous severity-column set for ~150ms — or indefinitely if rapid
+        // changes kept cancelling the task before it fired.
+        severityColumnSet = sevCols
+        severityByID = severityMap
         guard let col = sortColumn else {
             cachedSorted = entries
-            severityColumnSet = sevCols
-            severityByID = severityMap
             return
         }
         let asc = sortAscending
@@ -334,8 +339,6 @@ struct LiveTailView: View {
             }.value
             guard !Task.isCancelled else { return }
             cachedSorted = sorted
-            severityColumnSet = sevCols
-            severityByID = severityMap
         }
     }
 

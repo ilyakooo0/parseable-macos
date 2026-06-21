@@ -108,14 +108,28 @@ enum SQLCompletionProvider {
         let context = determineContext(text: text, position: wordStart)
 
         // A table completion supplies its own surrounding quotes. If the user has
-        // already typed an opening double-quote (common for stream names with
-        // spaces, e.g. `FROM "my`), absorb it into the replacement range so the
-        // inserted `"name"` replaces the stray quote instead of producing `""name"`.
+        // already typed quotes directly around the word (common for stream names
+        // with spaces, e.g. `FROM "my"`), absorb them into the replacement range so
+        // the inserted `"name"` replaces the stray quotes instead of producing
+        // `""name""`. Mirror `insertCompletion`, which absorbs leading and trailing
+        // quotes independently for any `.table` item — so apply this wherever table
+        // completions are offered (`.tableRef` and `.general`), not just `.tableRef`.
         var replaceStart = wordStart
-        if case .tableRef = context, wordStart > 0, nsText.character(at: wordStart - 1) == 0x22 {
-            replaceStart -= 1
+        var replaceEnd = wordEnd
+        let offersTable: Bool
+        switch context {
+        case .tableRef, .general: offersTable = true
+        default: offersTable = false
         }
-        let range = NSRange(location: replaceStart, length: wordEnd - replaceStart)
+        if offersTable {
+            if wordStart > 0, nsText.character(at: wordStart - 1) == 0x22 {
+                replaceStart -= 1
+            }
+            if wordEnd < nsText.length, nsText.character(at: wordEnd) == 0x22 {
+                replaceEnd += 1
+            }
+        }
+        let range = NSRange(location: replaceStart, length: replaceEnd - replaceStart)
         let uppercasePrefix = prefix.uppercased()
 
         var items: [SQLCompletionItem] = []

@@ -31,6 +31,16 @@ struct TimeRangePicker: View {
                 .font(.caption)
             }
         }
+        .onChange(of: showCustomPicker) { _, isShown in
+            // Dismissing the popover by clicking outside bypasses the "Done"
+            // button's `customEnd > customStart` validation, which could leave an
+            // inverted or zero-width range selected (the menu already set
+            // `option == .custom`). Sanitize on close so a backwards range can
+            // never reach a query.
+            if !isShown && customEnd <= customStart {
+                customEnd = customStart.addingTimeInterval(3600)
+            }
+        }
         .popover(isPresented: $showCustomPicker) {
             VStack(spacing: 12) {
                 Text("Custom Time Range")
