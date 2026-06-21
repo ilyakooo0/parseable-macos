@@ -523,19 +523,25 @@ final class QueryViewModel {
         return empty
     }
 
+    /// Exports the on-screen rows as JSON. Uses `filteredResults` (not the full
+    /// `results`) so the output matches what the user sees with an active result
+    /// filter, mirroring the view's export path.
     func exportAsJSON() -> String {
-        guard !results.isEmpty else { return "[]" }
+        let rows = filteredResults
+        guard !rows.isEmpty else { return "[]" }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        if let data = try? encoder.encode(Self.projectRecords(results, to: visibleColumns)),
+        if let data = try? encoder.encode(Self.projectRecords(rows, to: visibleColumns)),
            let string = String(data: data, encoding: .utf8) {
             return string
         }
         return "[]"
     }
 
+    /// Exports the on-screen rows as CSV. Uses `filteredResults` for the same
+    /// reason as `exportAsJSON`.
     func exportAsCSV() -> String {
-        Self.buildCSV(records: results, columns: visibleColumns)
+        Self.buildCSV(records: filteredResults, columns: visibleColumns)
     }
 
     /// Projects each record down to the given columns so JSON export, like CSV,

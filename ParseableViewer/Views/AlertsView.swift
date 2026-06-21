@@ -76,6 +76,7 @@ struct AlertsView: View {
 
     private func loadAlerts(stream: String) async {
         guard let client = appState.client else { return }
+        let connID = appState.activeConnection?.id
         isLoading = true
         errorMessage = nil
         alertConfig = nil
@@ -84,13 +85,17 @@ struct AlertsView: View {
             let config = try await client.getAlerts(stream: stream)
             // The manual Refresh/Retry buttons spawn detached Tasks not tied to
             // `.task(id: stream)` cancellation, so a slow refresh for the old stream
-            // can resolve after a switch. Drop stale results.
+            // can resolve after a switch. Drop stale results. Check the connection
+            // id too: two servers can expose a same-named stream, so a name-only
+            // guard could write the previous server's alerts after a server switch.
             // Still clear isLoading on the stale path: this task set the spinner,
             // so leaving it true wedges the ProgressView and disables Refresh.
-            guard stream == appState.selectedStream else { isLoading = false; return }
+            guard stream == appState.selectedStream,
+                  connID == appState.activeConnection?.id else { isLoading = false; return }
             alertConfig = config
         } catch {
-            guard stream == appState.selectedStream else { isLoading = false; return }
+            guard stream == appState.selectedStream,
+                  connID == appState.activeConnection?.id else { isLoading = false; return }
             errorMessage = ParseableError.userFriendlyMessage(for: error)
         }
 

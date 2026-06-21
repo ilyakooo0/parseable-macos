@@ -198,6 +198,17 @@ enum SQLCompletionProvider {
         // NSString too. `String.prefix` counts grapheme clusters and would slice
         // at the wrong place when non-BMP characters (e.g. emoji) precede it.
         let before = (text as NSString).substring(to: position)
+
+        // A qualifier dot directly before the caret (`t.co|`, `"stream".le|`) means
+        // we're completing the column half of a table-qualified reference. The word
+        // scan that produced `position` stops at the dot (it's not a word character),
+        // while the tokenizer keeps the dot attached to the preceding token — so
+        // without this the last token is `"t."`, which matches no keyword and falls
+        // through to `.general`, mixing keywords/tables into a column position.
+        if before.hasSuffix(".") {
+            return .columnRef
+        }
+
         let tokens = tokenize(before)
 
         guard let lastToken = tokens.last?.uppercased() else {

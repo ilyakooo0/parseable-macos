@@ -362,8 +362,12 @@ final class AppState {
     @MainActor
     func deleteFilter(_ filter: ParseableFilter) async throws {
         guard let client else { throw ParseableError.notConnected }
-        guard let filterId = filter.filterId else { return }
-        try await client.deleteFilter(id: filterId)
+        // A filter without a server-assigned id was never persisted remotely, so
+        // there's nothing to delete on the server — just drop it locally. Returning
+        // early here would silently leave the row in place with no error.
+        if let filterId = filter.filterId {
+            try await client.deleteFilter(id: filterId)
+        }
         filters.removeAll { $0.id == filter.id }
     }
 

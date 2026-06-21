@@ -299,6 +299,13 @@ struct LiveTailView: View {
     private func rebuildSortedEntries() {
         ensureColumnWidths()
         let entries = viewModel.cachedFilteredEntries
+        // Clear a selection whose entry no longer exists — filtered out by a new
+        // column/text filter, or aged out of the capped buffer during streaming.
+        // Without this the detail pane silently vanishes while the stale id lingers
+        // (LogTableView solves the same problem with reconcileSelection()).
+        if let id = selectedEntryID, !entries.contains(where: { $0.id == id }) {
+            selectedEntryID = nil
+        }
         let cols = viewModel.visibleColumns
         let sevCols = buildSeverityColumnSet(columns: cols)
         // Precompute severity per entry; sorting doesn't change the set.
