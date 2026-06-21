@@ -201,7 +201,10 @@ enum SQLCompletionProvider {
         case "GROUP":
             return .afterGroup
         default:
-            if lastToken == "," {
+            // After a `,` or an opening `(` the caret continues an argument/column
+            // list (e.g. `SELECT COUNT(`, `WHERE status IN (`, `SELECT a, `), so
+            // scan back to the governing keyword to decide column vs table context.
+            if lastToken == "," || lastToken == "(" {
                 for token in tokens.reversed() {
                     let upper = token.uppercased()
                     if ["SELECT", "BY", "WHERE", "HAVING", "ON"].contains(upper) {

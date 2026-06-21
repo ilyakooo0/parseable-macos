@@ -73,7 +73,10 @@ final class QueryViewModel {
 
     // Query history
     var queryHistory: [QueryHistoryEntry] = []
-    var historyIsFull = false
+    // Derived from the (always-trimmed) history so it stays correct after a
+    // restored full history is loaded at launch, not just after an in-session
+    // overflow. `addToHistory` trims to `maxHistory`, so count never exceeds it.
+    var historyIsFull: Bool { queryHistory.count >= Self.maxHistory }
     private static let maxHistory = 50
 
     struct QueryHistoryEntry: Identifiable, Codable, Sendable {
@@ -711,14 +714,12 @@ final class QueryViewModel {
         queryHistory.insert(entry, at: 0)
         if queryHistory.count > Self.maxHistory {
             queryHistory = Array(queryHistory.prefix(Self.maxHistory))
-            historyIsFull = true
         }
         Self.saveHistory(queryHistory)
     }
 
     func clearHistory() {
         queryHistory = []
-        historyIsFull = false
         Self.saveHistory([])
     }
 

@@ -61,10 +61,18 @@ struct SQLEditorView: NSViewRepresentable {
             context.coordinator.applyHighlighting(to: textView)
             // NSRange is UTF-16 based; compare against the NSString length, not
             // String.count (grapheme count), or wide characters drop the selection.
+            // Clamp each range to the new length rather than discarding the ones that
+            // overflow, so replacing the text with a shorter string keeps the caret
+            // at the end instead of losing the selection entirely.
             let length = (textView.string as NSString).length
-            let validRanges = selectedRanges.filter { NSMaxRange($0.rangeValue) <= length }
-            if !validRanges.isEmpty {
-                textView.selectedRanges = validRanges
+            let clampedRanges = selectedRanges.map { value -> NSValue in
+                let range = value.rangeValue
+                let location = min(range.location, length)
+                let len = min(range.length, length - location)
+                return NSValue(range: NSRange(location: location, length: len))
+            }
+            if !clampedRanges.isEmpty {
+                textView.selectedRanges = clampedRanges
             }
         }
         context.coordinator.updateErrorHighlight(in: textView, errorRange: errorRange)

@@ -197,7 +197,11 @@ struct AlertRowView: View {
         switch alert.state?.lowercased() {
         case "triggered": return .red
         case "disabled": return .gray
-        default: return .orange
+        // A reported-but-unrecognized state is a genuine "needs attention" signal,
+        // so tint it orange; a missing state is simply unknown and stays neutral so
+        // the bell icon isn't painted as a warning for every stateless alert.
+        case .some: return .orange
+        case nil: return .secondary
         }
     }
 
