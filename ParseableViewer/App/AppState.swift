@@ -141,6 +141,13 @@ final class AppState {
         if activeConnection?.id != connection.id {
             selectedStream = nil
             streamLoadError = nil
+            // Drop the previous server's stream list and filters too — otherwise the
+            // sidebar keeps rendering server A's streams/filters (with selection
+            // already nilled) throughout the reconnect window. Same rationale as
+            // `serverAbout` below; matches the failure path and `disconnect()`. Both
+            // are repopulated once the new server's listStreams/listFilters respond.
+            streams = []
+            filters = []
             // Drop the previous server's cached `about` so views seeding from it
             // (ServerInfoView) don't paint the old server's details while the new
             // one loads. It's repopulated below once the new server responds.
