@@ -291,6 +291,17 @@ final class QueryViewModel {
         }
         columnOrder = merged
         hiddenColumns = config.hidden.intersection(extractedSet)
+
+        // The `visibleCount > 1` guard in toggleColumnVisibility only covers
+        // user toggles. A saved config can hide every currently-extracted column
+        // (e.g. the stream's schema shrank so only previously-hidden columns
+        // remain), which would render the results table with zero columns and
+        // leave `updateSQLColumns` early-returning on the empty case. Keep at
+        // least the first column visible. Mirrors LiveTailViewModel.updateColumns.
+        if !columnOrder.isEmpty, hiddenColumns.count >= columnOrder.count,
+           let firstColumn = columnOrder.first {
+            hiddenColumns.remove(firstColumn)
+        }
     }
 
     private(set) var filteredResults: [LogRecord] = []

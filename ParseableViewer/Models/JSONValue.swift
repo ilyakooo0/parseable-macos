@@ -50,6 +50,10 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
         case .bool(let v): return v ? "true" : "false"
         case .int(let v): return String(v)
         case .double(let v):
+            // Non-finite doubles have no display (and no JSON) representation;
+            // render them as "null" to match jsonNumber/exportString rather than
+            // letting String(_:) emit "inf"/"-inf"/"nan" into the UI and CSV cells.
+            if !v.isFinite { return "null" }
             if v == v.rounded() && abs(v) < 1e15 {
                 return String(format: "%.0f", v)
             }

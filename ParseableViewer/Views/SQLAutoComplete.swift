@@ -263,7 +263,12 @@ enum SQLCompletionProvider {
         (ch >= 0x41 && ch <= 0x5A) ||  // A-Z
         (ch >= 0x61 && ch <= 0x7A) ||   // a-z
         (ch >= 0x30 && ch <= 0x39) ||   // 0-9
-        ch == 0x5F                        // _
+        ch == 0x5F ||                     // _
+        ch >= 0x80                        // any non-ASCII code unit: Unicode letters
+        // and digits in identifiers (e.g. accented or CJK schema field names), plus
+        // both halves of a surrogate pair. SQL delimiters — whitespace, operators,
+        // quotes, parens, commas — are all ASCII (< 0x80), so this only sweeps in
+        // genuine identifier characters and won't run a word past a token boundary.
     }
 }
 

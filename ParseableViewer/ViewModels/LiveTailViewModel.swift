@@ -195,6 +195,10 @@ final class LiveTailViewModel {
         hiddenColumns = []
         savedHiddenColumns = []
         columnFilters = []
+        // Clear the text filter too. Leaving it set while clearing the column-filter
+        // chips is inconsistent and would let a stale search from a previous stream
+        // make the fresh tail come up appearing empty or partially filtered.
+        filterText = ""
         currentStream = stream
         rebuildFilteredEntries()
 
@@ -246,6 +250,9 @@ final class LiveTailViewModel {
         hiddenColumns = []
         savedHiddenColumns = []
         columnFilters = []
+        // Match start(): clear the text filter alongside the column-filter chips so
+        // a clear()ed tail isn't immediately re-hidden by a lingering search string.
+        filterText = ""
         rebuildFilteredEntries()
     }
 
@@ -580,7 +587,19 @@ final class LiveTailViewModel {
         // (with NaN folded to a single bit pattern) so a field that serializes as `5`
         // in one poll and `5.0` in another doesn't bypass dedup as a phantom row.
         case .int(let i):
-            hashNumberBits(Double(i).bitPattern, h0: &h0, h1: &h1)
+            // If the integer round-trips losslessly through Double, hash via the
+            // Double path so `.int(5)` and `.double(5.0)` (which are ==) share a
+            // fingerprint. Integers beyond 2^53 lose precision in Double, so two
+            // distinct values (e.g. 2^53 and 2^53+1) would otherwise collide and
+            // the second would be silently dropped as a phantom duplicate — the
+            // dedup set has no `==` fallback. No Double can equal such a
+            // non-representable integer, so hashing its exact 64-bit pattern can't
+            // wrongly merge it with a `.double`.
+            if let exact = Int(exactly: Double(i)), exact == i {
+                hashNumberBits(Double(i).bitPattern, h0: &h0, h1: &h1)
+            } else {
+                hashNumberBits(UInt64(bitPattern: Int64(i)), h0: &h0, h1: &h1)
+            }
         case .double(let d):
             // Canonicalize NaN (so all NaNs fold together) AND signed zero: JSONValue
             // equality treats `-0.0 == 0.0`, but their raw bit patterns differ, which
