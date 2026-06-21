@@ -223,15 +223,15 @@ struct SQLEditorView: NSViewRepresentable {
                 }
             }
 
-            // A table completion carries its own quotes; absorb a directly
-            // preceding opening quote the user typed (e.g. `FROM "my`) so the
-            // inserted `"name"` replaces it instead of producing `""name"`.
-            if item.kind == .table, wordStart > 0,
-               nsText.character(at: wordStart - 1) == 0x22 {
-                wordStart -= 1
-                // Mirror on the trailing side: if a matching closing quote follows
-                // the word (caret inside an already-quoted `FROM "my|"`), absorb it
-                // too so the inserted `"name"` doesn't leave a dangling `"name""`.
+            // A table completion carries its own quotes; absorb any double-quote the
+            // user typed directly around the word so the inserted `"name"` replaces
+            // it instead of leaving a stray quote. Leading and trailing are handled
+            // independently: a closing quote can exist without an opening one (e.g.
+            // `FROM my"`), which would otherwise produce a dangling `"name""`.
+            if item.kind == .table {
+                if wordStart > 0, nsText.character(at: wordStart - 1) == 0x22 {
+                    wordStart -= 1
+                }
                 if wordEnd < nsText.length, nsText.character(at: wordEnd) == 0x22 {
                     wordEnd += 1
                 }

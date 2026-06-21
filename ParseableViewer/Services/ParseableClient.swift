@@ -394,6 +394,12 @@ final class ParseableClient: Sendable {
         }
         do {
             let single = try Self.jsonDecoder.decode(RetentionConfig.self, from: data)
+            // RetentionConfig decodes every field with `try?`, so any JSON object
+            // (including `{}` or an error body) decodes to an all-nil config. Treat
+            // an empty config as "no retention" rather than a phantom policy entry.
+            guard single.description != nil || single.duration != nil || single.action != nil else {
+                return []
+            }
             return [single]
         } catch {
             throw ParseableError.decodingError("Unexpected retention response format")
