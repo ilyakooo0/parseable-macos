@@ -379,4 +379,18 @@ typealias LogRecord = [String: JSONValue]
 struct QueryResponse: Codable, Sendable {
     let records: [LogRecord]
     let fields: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case records, fields
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // A wrapped response can legitimately omit `records` for a zero-row result
+        // (e.g. `{"fields": [...]}`). Default to an empty array rather than letting
+        // the synthesized decoder throw, which would surface as a spurious
+        // "Unexpected query response format" error instead of an empty result set.
+        records = try container.decodeIfPresent([LogRecord].self, forKey: .records) ?? []
+        fields = try container.decodeIfPresent([String].self, forKey: .fields)
+    }
 }

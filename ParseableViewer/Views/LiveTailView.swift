@@ -290,6 +290,14 @@ struct LiveTailView: View {
             // next poll.
             rebuildSortedEntries()
         }
+        .onChange(of: viewModel.filteredEntriesGeneration) { _, _ in
+            // Kept on the always-present container (not inside liveTailTable, which
+            // is only mounted once visibleColumns is non-empty). A generation bump
+            // that lands while the table is unmounted — e.g. the first poll arriving
+            // before columns exist — would otherwise be dropped, leaving the new
+            // entries unrendered until some other change happened to trigger a rebuild.
+            rebuildSortedEntries()
+        }
         .onAppear {
             rebuildSortedEntries()
         }
@@ -413,9 +421,6 @@ struct LiveTailView: View {
                         )
                     }
                 }
-            }
-            .onChange(of: viewModel.filteredEntriesGeneration) { _, _ in
-                rebuildSortedEntries()
             }
             .onChange(of: sortColumn) { _, _ in
                 rebuildSortedEntries()

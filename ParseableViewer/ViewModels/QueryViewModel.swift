@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 @Observable
+@MainActor
 final class QueryViewModel {
     var sqlQuery = "" {
         didSet {
@@ -24,14 +25,20 @@ final class QueryViewModel {
             // re-applies the filter.
             updateFilteredResults()
             let snapshot = results
-            searchTextTask = Task {
-                let texts = snapshot.map { record in
-                    record.values.map { $0.displayString }.joined(separator: " ")
-                }
-                guard !Task.isCancelled else { return }
-                cachedSearchTexts = texts
-                if !filterText.isEmpty {
-                    updateFilteredResults()
+            // The class is @MainActor, so this Task inherits main-actor isolation —
+            // its mutations of cachedSearchTexts/filteredResults are safely serialized
+            // with SwiftUI reads. Only the pure (and potentially large) displayString
+            // mapping is pushed off-main via Task.detached so it doesn't block the UI.
+            searchTextTask = Task { [weak self] in
+                let texts = await Task.detached(priority: .userInitiated) {
+                    snapshot.map { record in
+                        record.values.map { $0.displayString }.joined(separator: " ")
+                    }
+                }.value
+                guard let self, !Task.isCancelled else { return }
+                self.cachedSearchTexts = texts
+                if !self.filterText.isEmpty {
+                    self.updateFilteredResults()
                 }
             }
         }
@@ -551,7 +558,7 @@ final class QueryViewModel {
     /// Projects each record down to the given columns so JSON export, like CSV,
     /// respects hidden columns instead of leaking every field. Safe to call from
     /// any thread.
-    static func projectRecords(_ records: [LogRecord], to columns: [String]) -> [LogRecord] {
+    nonisolated static func projectRecords(_ records: [LogRecord], to columns: [String]) -> [LogRecord] {
         // No column list means no restriction (columns not computed yet) — export
         // the full records rather than stripping every field to an empty object.
         guard !columns.isEmpty else { return records }
@@ -560,7 +567,7 @@ final class QueryViewModel {
     }
 
     /// Builds a CSV string from records and columns. Safe to call from any thread.
-    static func buildCSV(records: [LogRecord], columns: [String]) -> String {
+    nonisolated static func buildCSV(records: [LogRecord], columns: [String]) -> String {
         guard !records.isEmpty, !columns.isEmpty else { return "" }
 
         var csv = String()
@@ -586,7 +593,7 @@ final class QueryViewModel {
         return csv
     }
 
-    private static func escapeCSV(_ value: String) -> String {
+    nonisolated private static func escapeCSV(_ value: String) -> String {
         // Check at the Unicode scalar level to correctly detect \r and \n
         // inside \r\n (CRLF) grapheme clusters, which Swift's String.contains
         // treats as a single Character that doesn't match "\r" or "\n" alone.
@@ -731,7 +738,7 @@ final class QueryViewModel {
     }
 
     /// Escapes a SQL identifier by doubling internal double-quotes, then wrapping in double-quotes.
-    static func escapeSQLIdentifier(_ identifier: String) -> String {
+    nonisolated static func escapeSQLIdentifier(_ identifier: String) -> String {
         "\"\(identifier.replacingOccurrences(of: "\"", with: "\"\""))\""
     }
 

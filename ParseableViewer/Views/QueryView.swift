@@ -341,6 +341,10 @@ struct QueryView: View {
             }
         }
         .onChange(of: appState.queryRefreshToken) { _, _ in
+            // Guard on a selected stream like every sibling query trigger in this
+            // view. Without it, a refresh (Cmd+R) with no stream selected and an
+            // empty editor surfaces a spurious "Select a stream..." error.
+            guard appState.selectedStream != nil else { return }
             Task {
                 await viewModel.executeQuery(
                     client: appState.client,

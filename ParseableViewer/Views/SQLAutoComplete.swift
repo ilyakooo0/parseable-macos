@@ -389,7 +389,12 @@ final class SQLCompletionPopup: NSObject, NSTableViewDataSource, NSTableViewDele
 
         let rowCount = min(items.count, Self.maxVisibleRows)
         let height = CGFloat(rowCount) * Self.rowHeight + 4
-        let frame = NSRect(x: panel.frame.origin.x, y: panel.frame.origin.y,
+        // Anchor by the top edge (where the caret sits), matching show()/reposition().
+        // The panel's origin is its bottom-left corner, so holding origin.y fixed
+        // while the height changes would move the top edge — growing the list would
+        // creep the popup upward over the caret. Pin the top edge instead.
+        let topEdge = panel.frame.origin.y + panel.frame.height
+        let frame = NSRect(x: panel.frame.origin.x, y: topEdge - height,
                            width: Self.panelWidth, height: height)
         panel.setFrame(frame, display: true)
     }

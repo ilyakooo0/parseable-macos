@@ -1,6 +1,8 @@
 import XCTest
 @testable import ParseableViewer
 
+// QueryViewModel is @MainActor, so its tests must run on the main actor too.
+@MainActor
 final class QueryViewModelTests: XCTestCase {
     // MARK: - Column extraction
 

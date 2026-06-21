@@ -6,6 +6,13 @@ struct SettingsView: View {
     @AppStorage("maxQueryResults") private var maxQueryResults = 1000
     @AppStorage("liveTailPollInterval") private var liveTailPollInterval = 2.0
     @AppStorage("liveTailMaxEntries") private var liveTailMaxEntries = 5000
+    // The Settings scene is a separate window from ContentView. A .sheet presents
+    // over the window hosting the modifier, and binding both windows to the shared
+    // appState.showConnectionSheet would present two sheets at once. So the Settings
+    // window drives its own connection sheet with local state, fully independent of
+    // the main window's.
+    @State private var showConnectionSheet = false
+    @State private var sheetConnection: ServerConnection?
     var body: some View {
         TabView {
             // General settings
@@ -77,8 +84,8 @@ struct SettingsView: View {
                             }
 
                             Button {
-                                appState.editingConnection = connection
-                                appState.showConnectionSheet = true
+                                sheetConnection = connection
+                                showConnectionSheet = true
                             } label: {
                                 Image(systemName: "pencil")
                             }
@@ -98,8 +105,8 @@ struct SettingsView: View {
                 HStack {
                     Spacer()
                     Button("Add Connection...") {
-                        appState.editingConnection = nil
-                        appState.showConnectionSheet = true
+                        sheetConnection = nil
+                        showConnectionSheet = true
                     }
                 }
                 .padding()
@@ -109,5 +116,8 @@ struct SettingsView: View {
             }
         }
         .frame(width: 500, height: 400)
+        .sheet(isPresented: $showConnectionSheet) {
+            ConnectionSheet(connection: sheetConnection)
+        }
     }
 }
