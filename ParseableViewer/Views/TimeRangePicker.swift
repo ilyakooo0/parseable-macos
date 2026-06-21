@@ -37,8 +37,19 @@ struct TimeRangePicker: View {
             // inverted or zero-width range selected (the menu already set
             // `option == .custom`). Sanitize on close so a backwards range can
             // never reach a query.
-            if !isShown && customEnd <= customStart {
+            guard !isShown else { return }
+            if customEnd <= customStart {
                 customEnd = customStart.addingTimeInterval(3600)
+            }
+            // Commit on *every* close path, not just the "Done" button. Closing
+            // the popover by clicking outside is the common dismissal gesture;
+            // without this the picker reads "Custom" while results still reflect
+            // the previously selected preset, since QueryView only re-queries on
+            // `timeRangeOption` changes (which it skips for `.custom`) — never on
+            // the custom dates. Done sets `showCustomPicker = false` and lets this
+            // handler do the single commit, so there's no double-query.
+            if option == .custom {
+                onCommit?()
             }
         }
         .popover(isPresented: $showCustomPicker) {
@@ -88,8 +99,9 @@ struct TimeRangePicker: View {
                     Spacer()
 
                     Button("Done") {
+                        // Just close — the `showCustomPicker` change handler is the
+                        // single commit point for all close paths (Done + click-out).
                         showCustomPicker = false
-                        onCommit?()
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(customEnd <= customStart)
