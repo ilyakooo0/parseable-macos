@@ -322,11 +322,15 @@ struct LiveTailView: View {
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
             let sorted = await Task.detached(priority: .userInitiated) {
-                entries.sorted { a, b in
-                    let aVal = a.record[col] ?? .null
-                    let bVal = b.record[col] ?? .null
-                    return asc ? aVal < bVal : bVal < aVal
-                }
+                // `sorted(by:)` is not guaranteed stable and entry ids are random
+                // UUIDs, so break ties on arrival order (the buffer index) to stop
+                // equal-keyed rows from reshuffling on every poll.
+                entries.enumerated().sorted { a, b in
+                    let aVal = a.element.record[col] ?? .null
+                    let bVal = b.element.record[col] ?? .null
+                    if aVal != bVal { return asc ? aVal < bVal : bVal < aVal }
+                    return a.offset < b.offset
+                }.map(\.element)
             }.value
             guard !Task.isCancelled else { return }
             cachedSorted = sorted

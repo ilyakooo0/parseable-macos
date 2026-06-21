@@ -55,6 +55,9 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
             // letting String(_:) emit "inf"/"-inf"/"nan" into the UI and CSV cells.
             if !v.isFinite { return "null" }
             if v == v.rounded() && abs(v) < 1e15 {
+                // Normalize negative zero so it renders as "0", not "-0"
+                // (`%.0f` preserves the sign bit of -0.0).
+                if v == 0 { return "0" }
                 return String(format: "%.0f", v)
             }
             return String(v)

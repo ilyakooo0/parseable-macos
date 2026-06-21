@@ -359,7 +359,12 @@ struct LogTableView: View {
                     sorted = enumerated.sorted { a, b in
                         let aVal = a.element[col] ?? .null
                         let bVal = b.element[col] ?? .null
-                        return asc ? aVal < bVal : bVal < aVal
+                        // `sorted(by:)` is not guaranteed stable, so break ties on
+                        // the original index to keep equal-keyed rows in a fixed
+                        // order across re-sorts (otherwise low-cardinality columns
+                        // like `level`/`status` would reshuffle on every refresh).
+                        if aVal != bVal { return asc ? aVal < bVal : bVal < aVal }
+                        return a.offset < b.offset
                     }
                 } else {
                     sorted = enumerated
@@ -403,7 +408,9 @@ struct LogTableView: View {
             sorted = enumerated.sorted { a, b in
                 let aVal = a.element[sortColumn] ?? .null
                 let bVal = b.element[sortColumn] ?? .null
-                return sortAscending ? aVal < bVal : bVal < aVal
+                // Stable tiebreak on original index — see the async path above.
+                if aVal != bVal { return sortAscending ? aVal < bVal : bVal < aVal }
+                return a.offset < b.offset
             }
         } else {
             sorted = enumerated
