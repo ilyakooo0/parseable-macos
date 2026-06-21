@@ -211,7 +211,13 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
         case (.int(let a), .double(let b)): return intLessThanDouble(a, b)
         case (.double(let a), .int(let b)): return doubleLessThanInt(a, b)
         case (.string(let a), .string(let b)):
-            return a.localizedStandardCompare(b) == .orderedAscending
+            // Two distinct strings can fold to `.orderedSame` under
+            // `localizedStandardCompare` (e.g. full-width vs half-width forms that
+            // Swift's `==` still treats as different). Break that tie with the raw
+            // `<` so order-equivalent values stay `==`, as `Comparable` requires —
+            // the same fallback `LogStream.<` already applies.
+            let order = a.localizedStandardCompare(b)
+            return order == .orderedAscending || (order == .orderedSame && a < b)
         case (.array, .array), (.object, .object):
             // Same rank, structured: equal values must not be ordered; otherwise
             // use a deterministic serialization tiebreaker.

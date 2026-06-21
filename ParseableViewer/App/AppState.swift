@@ -231,6 +231,13 @@ final class AppState {
         selectedStream = nil
         serverAbout = nil
         filters = []
+        // Clear transient stream/UI state too, otherwise a leftover stream-load
+        // error keeps rendering in the sidebar after disconnect and a stale search
+        // filter / tab carries into the next connection.
+        streamLoadError = nil
+        isLoadingStreams = false
+        streamSearchText = ""
+        currentTab = .query
         ConnectionStore.saveActiveConnectionID(nil)
     }
 
@@ -277,7 +284,14 @@ final class AppState {
         // about). Clear the stream selection first so a now-missing stream doesn't
         // keep driving detail-tab requests during the reconnect.
         if activeConnection?.id == connection.id {
+            // `performConnect` skips its stale-state cleanup because the id is
+            // unchanged, but the edited URL/credentials may point at a different
+            // server. Clear the stream-specific UI state here so a leftover sidebar
+            // search filter doesn't hide the new server's streams and a
+            // stream-specific tab doesn't linger with no valid selection.
             selectedStream = nil
+            streamSearchText = ""
+            currentTab = .query
             Task { await connect(to: connection) }
         }
     }

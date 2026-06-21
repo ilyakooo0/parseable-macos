@@ -96,6 +96,13 @@ private func formatByteSize(_ value: Double) -> String? {
     return ByteCountFormatter.string(fromByteCount: Int64(value), countStyle: .file)
 }
 
+private func formatByteSize(_ value: Int) -> String? {
+    // A negative byte count isn't meaningful; `ByteCountFormatter` would render it
+    // as a bogus "-1 KB"/"Zero KB" string, so drop it like the `Double` path does.
+    guard value >= 0 else { return nil }
+    return ByteCountFormatter.string(fromByteCount: Int64(value), countStyle: .file)
+}
+
 struct StreamStats: Codable, Sendable {
     let ingestion: IngestionStats?
     let storage: StorageStats?
@@ -118,7 +125,7 @@ struct StreamStats: Codable, Sendable {
             if let s = try? container.decode(String.self, forKey: .size) {
                 self.size = s
             } else if let n = try? container.decode(Int.self, forKey: .size) {
-                self.size = ByteCountFormatter.string(fromByteCount: Int64(n), countStyle: .file)
+                self.size = formatByteSize(n)
             } else if let d = try? container.decode(Double.self, forKey: .size) {
                 self.size = formatByteSize(d)
             } else {
@@ -127,7 +134,7 @@ struct StreamStats: Codable, Sendable {
             if let s = try? container.decode(String.self, forKey: .lifetime_size) {
                 self.lifetime_size = s
             } else if let n = try? container.decode(Int.self, forKey: .lifetime_size) {
-                self.lifetime_size = ByteCountFormatter.string(fromByteCount: Int64(n), countStyle: .file)
+                self.lifetime_size = formatByteSize(n)
             } else if let d = try? container.decode(Double.self, forKey: .lifetime_size) {
                 self.lifetime_size = formatByteSize(d)
             } else {
@@ -151,7 +158,7 @@ struct StreamStats: Codable, Sendable {
             if let s = try? container.decode(String.self, forKey: .size) {
                 self.size = s
             } else if let n = try? container.decode(Int.self, forKey: .size) {
-                self.size = ByteCountFormatter.string(fromByteCount: Int64(n), countStyle: .file)
+                self.size = formatByteSize(n)
             } else if let d = try? container.decode(Double.self, forKey: .size) {
                 self.size = formatByteSize(d)
             } else {
@@ -160,7 +167,7 @@ struct StreamStats: Codable, Sendable {
             if let s = try? container.decode(String.self, forKey: .lifetime_size) {
                 self.lifetime_size = s
             } else if let n = try? container.decode(Int.self, forKey: .lifetime_size) {
-                self.lifetime_size = ByteCountFormatter.string(fromByteCount: Int64(n), countStyle: .file)
+                self.lifetime_size = formatByteSize(n)
             } else if let d = try? container.decode(Double.self, forKey: .lifetime_size) {
                 self.lifetime_size = formatByteSize(d)
             } else {

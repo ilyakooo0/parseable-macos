@@ -198,12 +198,19 @@ final class LiveTailViewModel {
         currentStream = stream
         rebuildFilteredEntries()
 
-        timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
+        // Install the timer in `.common` modes so polling keeps firing while the
+        // main run loop is in event-tracking mode (scrolling, dragging a column,
+        // an open menu/popover). A `.default`-only timer — what
+        // `scheduledTimer(withTimeInterval:)` installs — silently pauses during
+        // those interactions, freezing the "live" tail until the user lets go.
+        let pollTimer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, !self.isPaused else { return }
                 await self.poll(client: client, stream: stream)
             }
         }
+        RunLoop.main.add(pollTimer, forMode: .common)
+        timer = pollTimer
     }
 
     func stop() {

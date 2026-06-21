@@ -41,7 +41,7 @@ struct TimeRangePicker: View {
                 DatePicker("End:", selection: $customEnd)
                     .datePickerStyle(.field)
 
-                if customEnd < customStart {
+                if customEnd <= customStart {
                     HStack(spacing: 4) {
                         Image(systemName: "exclamationmark.triangle.fill")
                         Text("End date must be after start date")
@@ -82,7 +82,7 @@ struct TimeRangePicker: View {
                         onCommit?()
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(customEnd < customStart)
+                    .disabled(customEnd <= customStart)
                 }
             }
             .padding()

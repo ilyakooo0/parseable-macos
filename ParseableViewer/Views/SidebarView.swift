@@ -225,7 +225,12 @@ struct ConnectionStatusView: View {
                             if newID == ConnectionStatusView.addConnectionID {
                                 appState.editingConnection = nil
                                 appState.showConnectionSheet = true
-                            } else if let conn = appState.connections.first(where: { $0.id == newID }) {
+                            } else if newID != connection.id,
+                                      let conn = appState.connections.first(where: { $0.id == newID }) {
+                                // Only reconnect when a *different* connection is
+                                // picked. Re-selecting the active one would tear
+                                // down and rebuild the client for no reason (a full
+                                // health-check + stream reload, with a visible flicker).
                                 Task { await appState.connect(to: conn) }
                             }
                         }
