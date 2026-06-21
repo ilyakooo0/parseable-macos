@@ -136,10 +136,21 @@ struct LiveTailView: View {
                         Circle()
                             .fill(viewModel.isPaused ? .yellow : .green)
                             .frame(width: 8, height: 8)
-                            .opacity(viewModel.isPaused ? 1.0 : pulseOpacity)
+                            .opacity(pulseOpacity)
                             .accessibilityLabel(viewModel.isPaused ? "Status: Paused" : "Status: Streaming")
-                            .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: pulseOpacity)
-                            .onAppear { pulseOpacity = 0.3 }
+                            // Drive the pulse with an explicit, re-triggerable animation.
+                            // The previous one-shot `pulseOpacity = 0.3` only changed the
+                            // value once, so the implicit `animation(value:)` never
+                            // restarted after a pause/resume and the dot froze. Pausing
+                            // settles the dot to solid; resuming restarts the pulse.
+                            .onAppear { startPulsing() }
+                            .onChange(of: viewModel.isPaused) { _, paused in
+                                if paused {
+                                    withAnimation(.easeInOut(duration: 0.3)) { pulseOpacity = 1.0 }
+                                } else {
+                                    startPulsing()
+                                }
+                            }
                             .onDisappear { pulseOpacity = 1.0 }
                         Text(viewModel.isPaused ? "Paused" : "Streaming")
                             .font(.caption)
@@ -289,6 +300,16 @@ struct LiveTailView: View {
     /// fire `onChange(of: visibleColumns)`, which would otherwise leave widths
     /// empty (falling back to the default width) after `selectedStream` cleared
     /// them.
+    /// Starts (or restarts) the streaming-status pulse. Resetting `pulseOpacity`
+    /// to 1.0 before animating to 0.3 guarantees a value delta so the repeating
+    /// animation re-triggers even when called after a pause/resume cycle.
+    private func startPulsing() {
+        pulseOpacity = 1.0
+        withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+            pulseOpacity = 0.3
+        }
+    }
+
     private func ensureColumnWidths() {
         let records = viewModel.cachedFilteredRecords
         for col in viewModel.visibleColumns where columnWidths[col] == nil {

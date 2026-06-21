@@ -75,6 +75,24 @@ final class JSONValueTests: XCTestCase {
         XCTAssertEqual(original, decoded)
     }
 
+    func testEncodeNonFiniteDoubleAsNull() throws {
+        // A non-finite double must encode as JSON null rather than throwing — a
+        // single infinity/NaN otherwise aborts the whole JSONEncoder pass and
+        // collapses exportAsJSON() to "[]" (total silent data loss).
+        let encoder = JSONEncoder()
+        for value: Double in [.infinity, -.infinity, .nan] {
+            let data = try encoder.encode(JSONValue.double(value))
+            XCTAssertEqual(String(data: data, encoding: .utf8), "null")
+        }
+    }
+
+    func testEncodeArrayWithNonFiniteDoubleDoesNotThrow() throws {
+        // Mirrors the export path: one non-finite value must not poison the rest.
+        let original: JSONValue = .array([.int(1), .double(.infinity), .string("ok")])
+        let data = try JSONEncoder().encode(original)
+        XCTAssertEqual(String(data: data, encoding: .utf8), "[1,null,\"ok\"]")
+    }
+
     // MARK: - displayString
 
     func testDisplayStringNull() {

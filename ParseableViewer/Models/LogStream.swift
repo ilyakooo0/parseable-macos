@@ -103,6 +103,17 @@ private func formatByteSize(_ value: Int) -> String? {
     return ByteCountFormatter.string(fromByteCount: Int64(value), countStyle: .file)
 }
 
+/// Normalizes a byte count that arrived as a JSON *string*. A bare numeric string
+/// (e.g. "1048576") is a raw byte count and is formatted like the numeric branches
+/// so identical sizes render consistently ("1 MB") regardless of whether the server
+/// quoted the value; an already-formatted string (e.g. "1.2 GB") is passed through
+/// unchanged.
+private func formatByteSize(_ value: String) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    if let n = Int(trimmed) { return formatByteSize(n) ?? value }
+    return value
+}
+
 struct StreamStats: Codable, Sendable {
     let ingestion: IngestionStats?
     let storage: StorageStats?
@@ -123,7 +134,7 @@ struct StreamStats: Codable, Sendable {
             self.lifetime_count = try? container.decode(Int.self, forKey: .lifetime_count)
             // Handle size as string or number
             if let s = try? container.decode(String.self, forKey: .size) {
-                self.size = s
+                self.size = formatByteSize(s)
             } else if let n = try? container.decode(Int.self, forKey: .size) {
                 self.size = formatByteSize(n)
             } else if let d = try? container.decode(Double.self, forKey: .size) {
@@ -132,7 +143,7 @@ struct StreamStats: Codable, Sendable {
                 self.size = nil
             }
             if let s = try? container.decode(String.self, forKey: .lifetime_size) {
-                self.lifetime_size = s
+                self.lifetime_size = formatByteSize(s)
             } else if let n = try? container.decode(Int.self, forKey: .lifetime_size) {
                 self.lifetime_size = formatByteSize(n)
             } else if let d = try? container.decode(Double.self, forKey: .lifetime_size) {
@@ -156,7 +167,7 @@ struct StreamStats: Codable, Sendable {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             self.type = try? container.decode(String.self, forKey: .type)
             if let s = try? container.decode(String.self, forKey: .size) {
-                self.size = s
+                self.size = formatByteSize(s)
             } else if let n = try? container.decode(Int.self, forKey: .size) {
                 self.size = formatByteSize(n)
             } else if let d = try? container.decode(Double.self, forKey: .size) {
@@ -165,7 +176,7 @@ struct StreamStats: Codable, Sendable {
                 self.size = nil
             }
             if let s = try? container.decode(String.self, forKey: .lifetime_size) {
-                self.lifetime_size = s
+                self.lifetime_size = formatByteSize(s)
             } else if let n = try? container.decode(Int.self, forKey: .lifetime_size) {
                 self.lifetime_size = formatByteSize(n)
             } else if let d = try? container.decode(Double.self, forKey: .lifetime_size) {

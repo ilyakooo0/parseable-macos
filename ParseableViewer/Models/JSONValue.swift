@@ -37,7 +37,14 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
         case .null: try container.encodeNil()
         case .bool(let v): try container.encode(v)
         case .int(let v): try container.encode(v)
-        case .double(let v): try container.encode(v)
+        case .double(let v):
+            // JSON has no representation for infinity/NaN, and JSONEncoder's
+            // default `.throw` strategy would abort the *entire* encode — turning
+            // a single non-finite value into a total export failure (`exportAsJSON`
+            // collapses to "[]"). Encode it as null to match displayString,
+            // compactJSON/jsonNumber, and the CSV export, which all render
+            // non-finite doubles as "null".
+            if v.isFinite { try container.encode(v) } else { try container.encodeNil() }
         case .string(let v): try container.encode(v)
         case .array(let v): try container.encode(v)
         case .object(let v): try container.encode(v)

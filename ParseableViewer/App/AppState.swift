@@ -280,6 +280,7 @@ final class AppState {
 
     @MainActor
     func updateConnection(_ connection: ServerConnection) {
+        let previous = connections.first(where: { $0.id == connection.id })
         if let index = connections.firstIndex(where: { $0.id == connection.id }) {
             connections[index] = connection
             ConnectionStore.saveConnections(connections)
@@ -293,7 +294,17 @@ final class AppState {
         // connection id is unchanged. We must NOT also spawn a connect here: the
         // sole caller (ConnectionSheet.saveAndConnect) already connects right after,
         // and a second connect would run two full reconnects and flash the UI twice.
-        if activeConnection?.id == connection.id {
+        //
+        // Only the URL/username/password identify the *server*; a cosmetic edit (e.g.
+        // renaming the connection) points at the same server, so wiping the stream
+        // selection/tab/streams would needlessly kick the user out of their current
+        // view. Restrict the reset to edits that actually change the server target.
+        let serverChanged = previous.map {
+            $0.url != connection.url
+                || $0.username != connection.username
+                || $0.password != connection.password
+        } ?? true
+        if serverChanged, activeConnection?.id == connection.id {
             // Clear the stream-specific UI state so a leftover sidebar search filter
             // doesn't hide the new server's streams and a stream-specific tab
             // doesn't linger with no valid selection.
