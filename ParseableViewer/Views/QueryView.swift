@@ -89,7 +89,7 @@ struct QueryView: View {
                     } label: {
                         Image(systemName: "square.and.arrow.up")
                     }
-                    .disabled(viewModel.results.isEmpty)
+                    .disabled(viewModel.filteredResults.isEmpty)
                     .accessibilityLabel("Export results")
                     .help("Export results")
 
@@ -404,7 +404,10 @@ struct QueryView: View {
         panel.begin { result in
             guard result == .OK, let url = panel.url else { return }
             let isCSV = url.pathExtension.lowercased() == "csv"
-            let results = viewModel.results
+            // Export what's on screen: the table renders `filteredResults`, so a
+            // user who has typed a result filter expects the export to contain
+            // those rows, not the full unfiltered set.
+            let results = viewModel.filteredResults
             let columns = viewModel.visibleColumns
             Task.detached(priority: .userInitiated) {
                 let content: String?

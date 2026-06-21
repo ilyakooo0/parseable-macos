@@ -126,7 +126,7 @@ struct SQLTokenizer: Sendable {
                 tokens.append(Token(kind: .star, range: start..<i))
 
             // Number (digit or leading dot followed by digit)
-            case _ where c.isNumber || (c == "." && peek(sql, at: i, offset: 1)?.isNumber == true):
+            case _ where isASCIIDigit(c) || (c == "." && peek(sql, at: i, offset: 1).map(isASCIIDigit) == true):
                 consumeNumber(&i, in: sql)
                 tokens.append(Token(kind: .number(String(sql[start..<i])), range: start..<i))
 
@@ -255,6 +255,15 @@ struct SQLTokenizer: Sendable {
         return value // unterminated
     }
 
+    /// SQL number literals use only ASCII digits. `Character.isNumber` also
+    /// matches Unicode numerics (`²`, `½`, Arabic-Indic digits, etc.), which
+    /// DataFusion's lexer rejects — accepting them here would tokenize those
+    /// characters as numbers and diverge token offsets from the server, throwing
+    /// off `errorHighlightRange` mapping.
+    private static func isASCIIDigit(_ c: Character) -> Bool {
+        c.isASCII && c.isNumber
+    }
+
     private static func consumeNumber(_ i: inout String.Index, in sql: String) {
         // Digits with at most one decimal point, so malformed input like
         // `1.2.3` doesn't get swallowed into a single number token.
@@ -265,7 +274,7 @@ struct SQLTokenizer: Sendable {
                 seenDot = true
                 return true
             }
-            return c.isNumber
+            return isASCIIDigit(c)
         })
         // Exponent — only consume `e`/`E` (and an optional sign) when actual
         // exponent digits follow, so `1e` or `1e+` aren't swallowed whole and
@@ -275,9 +284,9 @@ struct SQLTokenizer: Sendable {
             if lookahead < sql.endIndex, sql[lookahead] == "+" || sql[lookahead] == "-" {
                 sql.formIndex(after: &lookahead)
             }
-            if lookahead < sql.endIndex, sql[lookahead].isNumber {
+            if lookahead < sql.endIndex, isASCIIDigit(sql[lookahead]) {
                 i = lookahead
-                advance(&i, in: sql, while: { $0.isNumber })
+                advance(&i, in: sql, while: { isASCIIDigit($0) })
             }
         }
     }
