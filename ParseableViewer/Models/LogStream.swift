@@ -110,6 +110,8 @@ struct StreamStats: Codable, Sendable {
                 self.size = s
             } else if let n = try? container.decode(Int.self, forKey: .size) {
                 self.size = ByteCountFormatter.string(fromByteCount: Int64(n), countStyle: .file)
+            } else if let d = try? container.decode(Double.self, forKey: .size) {
+                self.size = ByteCountFormatter.string(fromByteCount: Int64(d), countStyle: .file)
             } else {
                 self.size = nil
             }
@@ -117,6 +119,8 @@ struct StreamStats: Codable, Sendable {
                 self.lifetime_size = s
             } else if let n = try? container.decode(Int.self, forKey: .lifetime_size) {
                 self.lifetime_size = ByteCountFormatter.string(fromByteCount: Int64(n), countStyle: .file)
+            } else if let d = try? container.decode(Double.self, forKey: .lifetime_size) {
+                self.lifetime_size = ByteCountFormatter.string(fromByteCount: Int64(d), countStyle: .file)
             } else {
                 self.lifetime_size = nil
             }
@@ -139,6 +143,8 @@ struct StreamStats: Codable, Sendable {
                 self.size = s
             } else if let n = try? container.decode(Int.self, forKey: .size) {
                 self.size = ByteCountFormatter.string(fromByteCount: Int64(n), countStyle: .file)
+            } else if let d = try? container.decode(Double.self, forKey: .size) {
+                self.size = ByteCountFormatter.string(fromByteCount: Int64(d), countStyle: .file)
             } else {
                 self.size = nil
             }
@@ -146,6 +152,8 @@ struct StreamStats: Codable, Sendable {
                 self.lifetime_size = s
             } else if let n = try? container.decode(Int.self, forKey: .lifetime_size) {
                 self.lifetime_size = ByteCountFormatter.string(fromByteCount: Int64(n), countStyle: .file)
+            } else if let d = try? container.decode(Double.self, forKey: .lifetime_size) {
+                self.lifetime_size = ByteCountFormatter.string(fromByteCount: Int64(d), countStyle: .file)
             } else {
                 self.lifetime_size = nil
             }

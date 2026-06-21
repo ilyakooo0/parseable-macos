@@ -352,7 +352,12 @@ final class ParseableClient: Sendable {
                     return legacy
                 }
             }
-            return config
+            // `/api/v1/alerts` is server-global; the legacy endpoint above is already
+            // per-stream. Scope the modern result to the requested stream via each
+            // alert's `datasets` membership so every stream doesn't show the same
+            // unfiltered global list.
+            let scoped = config.alerts?.filter { $0.datasets?.contains(stream) ?? false }
+            return AlertConfig(alerts: scoped, version: config.version)
         } catch let newEndpointError {
             // An auth failure won't be fixed by hitting the legacy endpoint (it
             // would just 401 again), so surface it immediately rather than

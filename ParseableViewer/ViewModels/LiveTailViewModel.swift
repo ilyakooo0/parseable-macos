@@ -278,7 +278,10 @@ final class LiveTailViewModel {
               let toIndex = columnOrder.firstIndex(of: targetColumn),
               fromIndex != toIndex else { return }
         let item = columnOrder.remove(at: fromIndex)
-        columnOrder.insert(item, at: toIndex)
+        // Removing an element before the target shifts the target down by one, so
+        // inserting at the original `toIndex` would land the column past its target.
+        let adjusted = fromIndex < toIndex ? toIndex - 1 : toIndex
+        columnOrder.insert(item, at: adjusted)
         saveColumnConfig()
     }
 
@@ -569,7 +572,11 @@ final class LiveTailViewModel {
         case .int(let i):
             hashNumberBits(Double(i).bitPattern, h0: &h0, h1: &h1)
         case .double(let d):
-            hashNumberBits((d.isNaN ? Double.nan : d).bitPattern, h0: &h0, h1: &h1)
+            // Canonicalize NaN (so all NaNs fold together) AND signed zero: JSONValue
+            // equality treats `-0.0 == 0.0`, but their raw bit patterns differ, which
+            // would otherwise let an identical record slip past dedup as a phantom row.
+            let canonical: Double = d.isNaN ? .nan : (d == 0 ? 0.0 : d)
+            hashNumberBits(canonical.bitPattern, h0: &h0, h1: &h1)
         case .string(let s):
             h0 = (h0 ^ 0x04) &* 1099511628211
             h1 = (h1 ^ 0x04) &* 6700417
@@ -632,14 +639,16 @@ final class LiveTailViewModel {
         }
 
         if parts.isEmpty {
+            // Filter to scalars BEFORE taking the prefix — otherwise three leading
+            // non-scalar fields (alphabetically) would yield an empty summary even
+            // when scalar fields exist later in the record.
             let scalarFields = record
                 .filter { $0.key != "p_timestamp" && $0.key != "p_tags" && $0.key != "p_metadata" }
+                .filter { $0.value.isScalar }
                 .sorted { $0.key < $1.key }
                 .prefix(3)
             for (key, value) in scalarFields {
-                if value.isScalar {
-                    parts.append("\(key)=\(value.displayString)")
-                }
+                parts.append("\(key)=\(value.displayString)")
             }
         }
 

@@ -193,7 +193,10 @@ final class QueryViewModel {
               let toIndex = columnOrder.firstIndex(of: targetColumn),
               fromIndex != toIndex else { return }
         let item = columnOrder.remove(at: fromIndex)
-        columnOrder.insert(item, at: toIndex)
+        // Removing an element before the target shifts the target down by one, so
+        // inserting at the original `toIndex` would land the column past its target.
+        let adjusted = fromIndex < toIndex ? toIndex - 1 : toIndex
+        columnOrder.insert(item, at: adjusted)
         saveColumnConfig()
         updateSQLColumns()
     }

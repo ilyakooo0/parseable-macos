@@ -10,7 +10,7 @@ struct SidebarView: View {
 
     /// Validates a stream name, returning an error message or nil if valid.
     static func validateStreamName(_ name: String) -> String? {
-        if name.trimmingCharacters(in: .whitespaces).isEmpty {
+        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return "Stream name cannot be empty."
         }
         if name.count > 255 {
@@ -155,7 +155,7 @@ struct SidebarView: View {
         .alert("Create Log Stream", isPresented: $showCreateStream) {
             TextField("Stream name", text: $newStreamName)
             Button("Create") {
-                let name = newStreamName.trimmingCharacters(in: .whitespaces)
+                let name = newStreamName.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !name.isEmpty else { newStreamName = ""; return }
                 if let error = Self.validateStreamName(name) {
                     appState.showErrorMessage(error)
