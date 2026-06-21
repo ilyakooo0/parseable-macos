@@ -311,7 +311,16 @@ enum JSONValue: Codable, Hashable, Sendable, Comparable {
     /// non-finite values serialize as `null` rather than the invalid `nan`/`inf`
     /// that `String(_:)` would emit.
     static func jsonNumber(_ v: Double) -> String {
-        v.isFinite ? String(v) : "null"
+        // Match `displayString`'s whole-number normalization so a value like
+        // 100.0 serializes identically whether it's a top-level cell (which goes
+        // through displayString) or nested in an array/object (which goes through
+        // compactJSON). Emitting "100" instead of "100.0" is still valid JSON.
+        guard v.isFinite else { return "null" }
+        if v == v.rounded() && abs(v) < 1e15 {
+            if v == 0 { return "0" } // normalize -0.0 → "0"
+            return String(format: "%.0f", v)
+        }
+        return String(v)
     }
 
     // MARK: - Equatable / Hashable
