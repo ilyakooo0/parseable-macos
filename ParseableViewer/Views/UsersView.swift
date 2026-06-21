@@ -95,8 +95,10 @@ struct UsersView: View {
             loadError = ParseableError.userFriendlyMessage(for: error)
         }
 
-        // Drop results if the active connection changed while awaiting.
-        guard connID == appState.activeConnection?.id else { return }
+        // Drop results if the active connection changed while awaiting. Still clear
+        // isLoading: this task set the spinner, so leaving it true on the stale path
+        // wedges the ProgressView and disables Refresh.
+        guard connID == appState.activeConnection?.id else { isLoading = false; return }
         if let loaded { users = loaded }
         errorMessage = loadError
         isLoading = false

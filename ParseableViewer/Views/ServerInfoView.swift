@@ -168,7 +168,9 @@ struct ServerInfoView: View {
 
         // Drop results if the active connection changed while awaiting, so a slow
         // load for the previous server can't overwrite the current one's state.
-        guard connID == appState.activeConnection?.id else { return }
+        // Still clear isLoading: this task owns the spinner it set, and leaving it
+        // true on the stale path wedges the ProgressView and disables Refresh.
+        guard connID == appState.activeConnection?.id else { isLoading = false; return }
         isHealthy = healthy
         about = aboutValue
         errorMessage = aboutError

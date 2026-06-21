@@ -85,10 +85,12 @@ struct AlertsView: View {
             // The manual Refresh/Retry buttons spawn detached Tasks not tied to
             // `.task(id: stream)` cancellation, so a slow refresh for the old stream
             // can resolve after a switch. Drop stale results.
-            guard stream == appState.selectedStream else { return }
+            // Still clear isLoading on the stale path: this task set the spinner,
+            // so leaving it true wedges the ProgressView and disables Refresh.
+            guard stream == appState.selectedStream else { isLoading = false; return }
             alertConfig = config
         } catch {
-            guard stream == appState.selectedStream else { return }
+            guard stream == appState.selectedStream else { isLoading = false; return }
             errorMessage = ParseableError.userFriendlyMessage(for: error)
         }
 
