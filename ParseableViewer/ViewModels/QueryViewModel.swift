@@ -427,9 +427,13 @@ final class QueryViewModel {
                 queryDuration = CFAbsoluteTimeGetCurrent() - startTime
                 resultCount = results.count
 
-                // Detect if results were likely truncated (only meaningful
-                // for auto-generated queries where we control the LIMIT)
-                resultsTruncated = usedAutoLimit && results.count == limit
+                // Detect if results were likely truncated. We know the cap for
+                // auto-generated queries; for user-entered SQL (which includes the
+                // default query `setDefaultQuery` writes into the editor — the common
+                // stream-selection path), parse a trailing `LIMIT n` so the indicator
+                // still fires when the row count lands exactly on the limit.
+                let effectiveLimit = usedAutoLimit ? limit : Self.trailingLimit(in: sql)
+                resultsTruncated = effectiveLimit.map { results.count == $0 } ?? false
 
                 // Extract columns in a single pass, with priority fields first,
                 // then apply any saved column configuration for this stream
@@ -751,6 +755,19 @@ final class QueryViewModel {
     /// Escapes a SQL identifier by doubling internal double-quotes, then wrapping in double-quotes.
     nonisolated static func escapeSQLIdentifier(_ identifier: String) -> String {
         "\"\(identifier.replacingOccurrences(of: "\"", with: "\"\""))\""
+    }
+
+    /// Extracts the row cap from a trailing `LIMIT n` clause (tolerating a trailing
+    /// semicolon/whitespace), used to detect when a result set was truncated.
+    /// Returns nil when there's no recognizable trailing `LIMIT` — e.g. when the
+    /// query uses `LIMIT n OFFSET m` — so we never report a false truncation.
+    nonisolated static func trailingLimit(in sql: String) -> Int? {
+        let pattern = #"(?i)\bLIMIT\s+(\d+)\s*;?\s*$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(sql.startIndex..<sql.endIndex, in: sql)
+        guard let match = regex.firstMatch(in: sql, range: range),
+              let numberRange = Range(match.range(at: 1), in: sql) else { return nil }
+        return Int(sql[numberRange])
     }
 
     // MARK: - Query History

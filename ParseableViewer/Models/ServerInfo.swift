@@ -85,9 +85,20 @@ struct UserInfo: Identifiable, Codable, Sendable {
     }
 
     init(from decoder: Decoder) throws {
-        // Handle both {"id": "x", ...} and variations
-        if let container = try? decoder.container(keyedBy: CodingKeys.self) {
-            self.id = try container.decode(String.self, forKey: .id)
+        // Handle both {"id": "x", ...} and a bare "x" string element.
+        if let container = try? decoder.container(keyedBy: CodingKeys.self),
+           container.contains(.id) {
+            // Decode `id` defensively: the server may quote it as a string or
+            // send it as a number/other JSON. Fall back to JSONValue.displayString
+            // so a single odd entry doesn't fail the whole user list (matching the
+            // file's otherwise-defensive decoding).
+            if let stringID = try? container.decode(String.self, forKey: .id) {
+                self.id = stringID
+            } else if let valueID = try? container.decode(JSONValue.self, forKey: .id) {
+                self.id = valueID.displayString
+            } else {
+                self.id = ""
+            }
             self.method = try? container.decode(String.self, forKey: .method)
         } else {
             let container = try decoder.singleValueContainer()
