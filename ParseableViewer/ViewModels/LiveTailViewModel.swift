@@ -193,6 +193,11 @@ final class LiveTailViewModel {
         pollGeneration += 1
         isRunning = true
         isPaused = false
+        // Reset the in-flight guard: if a poll was awaiting its network round-trip
+        // when the tail was stopped, its `defer { isPolling = false }` only runs when
+        // that request finally returns. Without clearing it here, the new timer's
+        // first tick would hit `guard !isPolling` and be skipped for a whole interval.
+        isPolling = false
         errorMessage = nil
         entries = []
         seenFingerprints = []
@@ -243,6 +248,10 @@ final class LiveTailViewModel {
 
     func clear() {
         pollGeneration += 1
+        // Match start(): drop the in-flight guard so a poll still awaiting its
+        // response (whose results this generation bump will discard) can't make the
+        // next timer tick skip itself via `guard !isPolling`.
+        isPolling = false
         entries = []
         seenFingerprints = []
         seenFingerprintOrder = []

@@ -88,6 +88,58 @@ private actor ResponseCache {
     }
 }
 
+/// Strips the `Authorization` header on redirects that cross to a different
+/// origin. By default `URLSession` re-sends the original request's headers —
+/// including the `Basic` credentials this client attaches to every request —
+/// to the redirect target. A server (or a malicious/misconfigured proxy)
+/// answering with a 3xx to an unrelated host would otherwise harvest the user's
+/// credentials. Same-origin redirects keep the header so normal auth still works.
+///
+/// Holds only an immutable `URL`, so it is safely `Sendable` despite the
+/// NSObject base (which isn't formally `Sendable`).
+private final class RedirectSanitizer: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let baseURL: URL
+
+    init(baseURL: URL) {
+        self.baseURL = baseURL
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        guard !RedirectSanitizer.sameOrigin(baseURL, request.url) else {
+            completionHandler(request)
+            return
+        }
+        var sanitized = request
+        sanitized.setValue(nil, forHTTPHeaderField: "Authorization")
+        completionHandler(sanitized)
+    }
+
+    /// Origin equality per scheme/host/port, normalizing the implicit default
+    /// port so `https://host` and `https://host:443` are treated as the same
+    /// origin (and aren't stripped on a legitimate same-host redirect).
+    static func sameOrigin(_ a: URL, _ b: URL?) -> Bool {
+        guard let b else { return false }
+        return a.scheme?.lowercased() == b.scheme?.lowercased()
+            && a.host?.lowercased() == b.host?.lowercased()
+            && effectivePort(a) == effectivePort(b)
+    }
+
+    private static func effectivePort(_ url: URL) -> Int? {
+        if let port = url.port { return port }
+        switch url.scheme?.lowercased() {
+        case "https": return 443
+        case "http": return 80
+        default: return nil
+        }
+    }
+}
+
 final class ParseableClient: Sendable {
     let baseURL: URL
     let username: String
@@ -126,7 +178,15 @@ final class ParseableClient: Sendable {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 120
-        self.session = URLSession(configuration: config)
+        // Install a delegate that drops the Authorization header on cross-origin
+        // redirects so Basic credentials can't be forwarded to an unrelated host.
+        // The session retains the delegate until `finishTasksAndInvalidate()` in
+        // deinit releases it, so there's no leak.
+        self.session = URLSession(
+            configuration: config,
+            delegate: RedirectSanitizer(baseURL: url),
+            delegateQueue: nil
+        )
     }
 
     convenience init(connection: ServerConnection) throws {

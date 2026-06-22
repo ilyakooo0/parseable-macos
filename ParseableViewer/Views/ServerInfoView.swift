@@ -3,7 +3,10 @@ import SwiftUI
 struct ServerInfoView: View {
     @Environment(AppState.self) private var appState
     @State private var about: ServerAbout?
-    @State private var isLoading = false
+    // Start in the loading state: the `.task` always runs `loadInfo()` on appear, so
+    // initializing to `false` would paint the `else` branch's red "Unhealthy" dot for
+    // one frame before the check begins. Begin neutral ("Checking…") instead.
+    @State private var isLoading = true
     @State private var isHealthy = false
     @State private var errorMessage: String?
 
@@ -151,7 +154,10 @@ struct ServerInfoView: View {
     }
 
     private func loadInfo() async {
-        guard let client = appState.client else { return }
+        // Clear isLoading on the no-client path: since isLoading now starts `true`
+        // (to avoid a red "Unhealthy" flash before the first check), an early return
+        // without resetting it would wedge the spinner permanently.
+        guard let client = appState.client else { isLoading = false; return }
         let connID = appState.activeConnection?.id
         isLoading = true
         errorMessage = nil

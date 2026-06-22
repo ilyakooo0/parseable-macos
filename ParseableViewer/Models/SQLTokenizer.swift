@@ -86,7 +86,11 @@ struct SQLTokenizer: Sendable {
 
             // Line comment
             case "-" where peek(sql, at: i, offset: 1) == "-":
-                advance(&i, in: sql, while: { $0 != "\n" })
+                // Stop at CR as well as LF: with CRLF (`\r\n`) line endings, consuming
+                // the trailing `\r` into the comment token would push its boundary past
+                // where `characterOffset`/DataFusion treat the line as ending, shifting
+                // the server-error highlight range. `\r` is then tokenized as whitespace.
+                advance(&i, in: sql, while: { $0 != "\n" && $0 != "\r" })
                 tokens.append(Token(kind: .lineComment, range: start..<i))
 
             // Block comment
