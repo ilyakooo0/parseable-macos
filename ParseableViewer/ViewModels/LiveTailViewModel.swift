@@ -57,7 +57,15 @@ final class LiveTailViewModel {
     private var pollGeneration = 0
 
     deinit {
-        timer?.invalidate()
+        // Timer.invalidate() must run on the run loop the timer was scheduled on
+        // (RunLoop.main, see start()). deinit is nonisolated and can run off the
+        // main thread, so hop to the main queue rather than invalidating inline.
+        // The scheduled timer only weakly references self, so deferring teardown
+        // past deallocation is safe — at worst it fires once more as a no-op
+        // before being invalidated. stop() remains the normal teardown path.
+        if let timer {
+            DispatchQueue.main.async { timer.invalidate() }
+        }
     }
 
     // Cached formatters — nonisolated(unsafe) so static methods can use them from Task.detached

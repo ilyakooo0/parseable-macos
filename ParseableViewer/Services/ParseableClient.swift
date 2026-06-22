@@ -101,11 +101,15 @@ final class ParseableClient: Sendable {
     // so a single shared instance would be a data race. Constructing one is cheap.
     private static var jsonDecoder: JSONDecoder { JSONDecoder() }
 
-    private static nonisolated(unsafe) let isoFormatter: ISO8601DateFormatter = {
+    // A fresh formatter per access, for the same reason as `jsonDecoder` above:
+    // `query` can run concurrently and `ISO8601DateFormatter.string(from:)` isn't
+    // documented as thread-safe, so a single shared instance would contradict the
+    // file's per-call concurrency discipline. Constructing one is cheap.
+    private static var isoFormatter: ISO8601DateFormatter {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
-    }()
+    }
 
     init(url: URL, username: String, password: String) {
         self.baseURL = url
@@ -288,10 +292,11 @@ final class ParseableClient: Sendable {
     // MARK: - Query
 
     func query(sql: String, startTime: Date, endTime: Date) async throws -> [LogRecord] {
+        let formatter = Self.isoFormatter
         let body: [String: Any] = [
             "query": sql,
-            "startTime": Self.isoFormatter.string(from: startTime),
-            "endTime": Self.isoFormatter.string(from: endTime)
+            "startTime": formatter.string(from: startTime),
+            "endTime": formatter.string(from: endTime)
         ]
 
         let bodyData = try JSONSerialization.data(withJSONObject: body)

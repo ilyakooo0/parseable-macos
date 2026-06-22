@@ -131,8 +131,8 @@ struct SQLTokenizer: Sendable {
                 tokens.append(Token(kind: .number(String(sql[start..<i])), range: start..<i))
 
             // Identifier or keyword
-            case _ where c.isLetter || c == "_":
-                advance(&i, in: sql, while: { $0.isLetter || $0.isNumber || $0 == "_" })
+            case _ where isASCIILetter(c) || c == "_":
+                advance(&i, in: sql, while: { isASCIILetter($0) || isASCIIDigit($0) || $0 == "_" })
                 let word = String(sql[start..<i])
                 if keywords.contains(word.uppercased()) {
                     tokens.append(Token(kind: .keyword(word.uppercased()), range: start..<i))
@@ -262,6 +262,16 @@ struct SQLTokenizer: Sendable {
     /// off `errorHighlightRange` mapping.
     private static func isASCIIDigit(_ c: Character) -> Bool {
         c.isASCII && c.isNumber
+    }
+
+    /// Bare (unquoted) SQL identifiers use only ASCII letters. `Character.isLetter`
+    /// matches the full Unicode letter range (`café`, `naïve`, etc.), which
+    /// DataFusion's lexer would require to be double-quoted — accepting them bare
+    /// here would tokenize them as identifiers and diverge token offsets from the
+    /// server, throwing off `errorHighlightRange` mapping (same rationale as
+    /// `isASCIIDigit`).
+    private static func isASCIILetter(_ c: Character) -> Bool {
+        c.isASCII && c.isLetter
     }
 
     private static func consumeNumber(_ i: inout String.Index, in sql: String) {

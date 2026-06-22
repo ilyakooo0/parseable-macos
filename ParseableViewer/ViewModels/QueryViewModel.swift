@@ -17,6 +17,8 @@ final class QueryViewModel {
             // Build search texts asynchronously
             searchTextTask?.cancel()
             cachedSearchTexts = []
+            searchTextGeneration &+= 1
+            let generation = searchTextGeneration
             // Apply the current filter immediately using the inline fallback path
             // (the cache was just invalidated). Calling updateFilteredResults()
             // rather than `filteredResults = results` avoids briefly showing
@@ -36,6 +38,12 @@ final class QueryViewModel {
                     }
                 }.value
                 guard let self, !Task.isCancelled else { return }
+                // Reject a stale write: if `results` was reassigned while this task
+                // was awaiting, a newer didSet bumped the generation. Task.isCancelled
+                // alone isn't sufficient because two re-queries producing result sets
+                // of identical count would otherwise let this stale, same-length
+                // cachedSearchTexts slip past updateFilteredResults's count guard.
+                guard generation == self.searchTextGeneration else { return }
                 self.cachedSearchTexts = texts
                 if !self.filterText.isEmpty {
                     self.updateFilteredResults()
@@ -45,6 +53,9 @@ final class QueryViewModel {
     }
     private var cachedSearchTexts: [String] = []
     private var searchTextTask: Task<Void, Never>?
+    /// Bumped on every `results` reassignment so the async search-text builder can
+    /// detect it was superseded and drop a stale write (see results.didSet).
+    private var searchTextGeneration = 0
     var columns: [String] = []
     var columnOrder: [String] = []
     var hiddenColumns: Set<String> = []
