@@ -303,11 +303,6 @@ struct LiveTailView: View {
         }
     }
 
-    /// Computes widths for any visible columns that don't have one yet. Covers
-    /// the case where switching to a stream with an identical column set doesn't
-    /// fire `onChange(of: visibleColumns)`, which would otherwise leave widths
-    /// empty (falling back to the default width) after `selectedStream` cleared
-    /// them.
     /// Starts (or restarts) the streaming-status pulse. Resetting `pulseOpacity`
     /// to 1.0 before animating to 0.3 guarantees a value delta so the repeating
     /// animation re-triggers even when called after a pause/resume cycle.
@@ -318,6 +313,11 @@ struct LiveTailView: View {
         }
     }
 
+    /// Computes widths for any visible columns that don't have one yet. Covers
+    /// the case where switching to a stream with an identical column set doesn't
+    /// fire `onChange(of: visibleColumns)`, which would otherwise leave widths
+    /// empty (falling back to the default width) after `selectedStream` cleared
+    /// them.
     private func ensureColumnWidths() {
         let records = viewModel.cachedFilteredRecords
         for col in viewModel.visibleColumns where columnWidths[col] == nil {

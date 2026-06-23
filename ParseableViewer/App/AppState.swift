@@ -251,10 +251,23 @@ final class AppState {
     @MainActor
     func refreshStreams() async {
         guard let client else { return }
+        // Capture the connection this fetch belongs to. A disconnect during the
+        // await would otherwise let the (now-stale) result overwrite the cleanup
+        // disconnect() just performed (streams = [], client = nil, etc.), leaving
+        // the disconnected UI showing the old server's streams and re-enabling
+        // stream-scoped tabs. Mirrors the connID guard used in performConnect,
+        // AlertsView.loadAlerts, UsersView.loadUsers, StreamDetailView.loadData,
+        // and ServerInfoView.loadInfo.
+        let connID = activeConnection?.id
         isLoadingStreams = true
         streamLoadError = nil
         do {
-            streams = try await client.listStreams()
+            let loaded = try await client.listStreams()
+            // Drop results if the active connection changed while awaiting. Still
+            // clear isLoadingStreams: this task set the spinner, so leaving it true
+            // wedges the indicator and disables Refresh.
+            guard connID == activeConnection?.id else { isLoadingStreams = false; return }
+            streams = loaded
             // Drop a selection that no longer exists server-side (e.g. the stream
             // was deleted from another client); otherwise the detail tabs keep
             // querying a missing stream and surface 404s.
@@ -262,6 +275,7 @@ final class AppState {
                 selectedStream = nil
             }
         } catch {
+            guard connID == activeConnection?.id else { isLoadingStreams = false; return }
             let message = ParseableError.userFriendlyMessage(for: error)
             streamLoadError = message
             self.errorMessage = "Failed to load streams: \(message)"
@@ -356,8 +370,15 @@ final class AppState {
     @MainActor
     func refreshFilters() async {
         guard let client else { return }
+        // Capture the connection this fetch belongs to. A disconnect during the
+        // await would otherwise let the (now-stale) result overwrite the cleanup
+        // disconnect() performed, resurrecting the old server's filters in the
+        // disconnected sidebar. Same guard pattern as refreshStreams.
+        let connID = activeConnection?.id
         isLoadingFilters = true
-        filters = (try? await client.listFilters()) ?? []
+        let loaded = (try? await client.listFilters()) ?? []
+        guard connID == activeConnection?.id else { isLoadingFilters = false; return }
+        filters = loaded
         isLoadingFilters = false
     }
 

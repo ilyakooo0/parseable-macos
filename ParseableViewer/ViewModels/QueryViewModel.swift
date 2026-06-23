@@ -83,6 +83,14 @@ final class QueryViewModel {
 
     // Query task for cancellation
     private var queryTask: Task<Void, Never>?
+    /// Bumped at the start of every `executeQuery`. The task captures this value
+    /// and only clears `isLoading` on exit if it's still the active query — so a
+    /// superseded query's late cleanup doesn't drop the loading indicator that
+    /// the newer query set. Without this, `isLoading = false` had to live in
+    /// every caller of `cancel()` (cancelQuery, clearResults, superseding
+    /// executeQuery) and a future cancel path that forgot to set it would wedge
+    /// the spinner indefinitely.
+    private var queryGeneration = 0
 
     // Time range
     var timeRangeOption: TimeRangeOption = .last1Hour
@@ -401,6 +409,12 @@ final class QueryViewModel {
 
         // Cancel any in-flight query
         queryTask?.cancel()
+        // Bump the generation so the in-flight task's cleanup can detect that
+        // it has been superseded and skip its `isLoading = false` (which would
+        // otherwise race with the `isLoading = true` below and briefly drop
+        // the loading indicator during this query).
+        queryGeneration &+= 1
+        let generation = queryGeneration
 
         isLoading = true
         errorMessage = nil
@@ -409,6 +423,16 @@ final class QueryViewModel {
         let startTime = CFAbsoluteTimeGetCurrent()
 
         let task = Task {
+            // Always clear the spinner on exit when this is still the active
+            // query. The defer runs on every path (success, error, and the
+            // cancellation cases that previously returned before reaching the
+            // trailing `isLoading = false`), so the spinner can never wedge
+            // even if a new cancel path is added without resetting it.
+            defer {
+                if generation == queryGeneration {
+                    isLoading = false
+                }
+            }
             do {
                 try Task.checkCancellation()
                 let queryResults = try await client.query(sql: sql, startTime: startDate, endTime: endDate)
@@ -477,8 +501,6 @@ final class QueryViewModel {
                 hiddenColumns = []
                 autoHiddenColumns = []
             }
-
-            isLoading = false
         }
         queryTask = task
         await task.value
