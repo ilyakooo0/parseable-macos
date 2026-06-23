@@ -63,7 +63,7 @@ struct AlertsView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
-                .task(id: stream) {
+                .task(id: "\(appState.activeConnection?.id.uuidString ?? "")|\(stream)") {
                     await loadAlerts(stream: stream)
                 }
             } else {
