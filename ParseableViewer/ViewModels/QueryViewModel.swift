@@ -80,6 +80,11 @@ final class QueryViewModel {
     /// The stream of the most recent `loadSchema` call, used to drop a stale
     /// in-flight response when the user rapidly switches streams.
     private(set) var latestSchemaStream: String?
+    /// The stream of the most recent `executeQuery` call. Defense-in-depth
+    /// alongside `queryGeneration`/task cancellation: drops a stale in-flight
+    /// query response if a newer query for a different stream supersedes it
+    /// without going through the normal cancel path.
+    private var latestQueryStream: String?
 
     // Query task for cancellation
     private var queryTask: Task<Void, Never>?
@@ -415,6 +420,7 @@ final class QueryViewModel {
         // the loading indicator during this query).
         queryGeneration &+= 1
         let generation = queryGeneration
+        latestQueryStream = stream
 
         isLoading = true
         errorMessage = nil
@@ -442,6 +448,9 @@ final class QueryViewModel {
                 // cancellation landing just after the check above would otherwise
                 // let a stale query clobber the newer one's results/columns.
                 guard !Task.isCancelled else { return }
+                // Drop the response if a newer query (possibly for a different
+                // stream) has since been launched without cancelling this task.
+                guard latestQueryStream == stream else { return }
 
                 results = queryResults
                 // Drop any prior row selection: the new result set reassigns row
@@ -484,6 +493,9 @@ final class QueryViewModel {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
+                // Same supersession guard as the success path: a stale failed
+                // query must not clobber a newer query's state.
+                guard latestQueryStream == stream else { return }
                 errorMessage = ParseableError.userFriendlyMessage(for: error)
                 if let serverError = error as? ParseableError,
                    case .serverError(_, let msg) = serverError,
@@ -682,6 +694,10 @@ final class QueryViewModel {
         errorRange = nil
         resultsTruncated = false
         schemaFields = []
+        // Keep the stream trackers consistent with the cleared schema/results so
+        // a later reload guard never sees a non-nil stream paired with empty data.
+        latestSchemaStream = nil
+        latestQueryStream = nil
     }
 
     /// Modifies `sqlQuery` to add a column-value filter condition.

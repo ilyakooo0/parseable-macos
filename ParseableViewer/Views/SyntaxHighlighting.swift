@@ -52,7 +52,11 @@ enum SQLSyntaxHighlighter {
     private static let commentRegex = try! NSRegularExpression(pattern: "--[^\n]*", options: [.caseInsensitive])
     private static let singleQuoteRegex = try! NSRegularExpression(pattern: "'[^']*(?:''[^']*)*'", options: [.caseInsensitive])
     private static let doubleQuoteRegex = try! NSRegularExpression(pattern: "\"[^\"]*(?:\"\"[^\"]*)*\"", options: [.caseInsensitive])
-    private static let numberRegex = try! NSRegularExpression(pattern: "\\b\\d+(?:\\.\\d+)?\\b", options: [])
+    // Matches the same numeric forms as `SQLTokenizer.consumeNumber`: integers,
+    // decimals, leading-dot floats (`.5`), and exponents (`1e5`, `1.5e-3`). The
+    // lookbehind keeps digits that belong to an identifier (`col1`, `t.2`) from
+    // being highlighted as numbers.
+    private static let numberRegex = try! NSRegularExpression(pattern: "(?<![\\w.])(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?", options: [])
     private static let keywordRegex: NSRegularExpression = {
         let pattern = "\\b(?:" + sortedKeywords.joined(separator: "|") + ")\\b"
         return try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])

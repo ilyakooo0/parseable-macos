@@ -404,10 +404,23 @@ final class LiveTailViewModelTests: XCTestCase {
         XCTAssertEqual(vm.columnFilters.count, 1)
     }
 
-    func testAddFilterDifferentValueIsAdditive() {
+    func testAddFilterSameColumnIncludeReplaces() {
         let vm = LiveTailViewModel()
         vm.addColumnFilter(column: "level", value: .string("error"), exclude: false)
+        // A second include on the same column replaces the first: includes are
+        // AND-combined and a column can only equal one value, so stacking two
+        // includes would match zero rows and silently empty the tail.
         vm.addColumnFilter(column: "level", value: .string("warn"), exclude: false)
+        XCTAssertEqual(vm.columnFilters.count, 1)
+        XCTAssertEqual(vm.columnFilters[0].value, .string("warn"))
+    }
+
+    func testAddFilterSameColumnExcludesStack() {
+        let vm = LiveTailViewModel()
+        vm.addColumnFilter(column: "level", value: .string("debug"), exclude: true)
+        // Excludes on the same column legitimately stack: level ≠ debug AND
+        // level ≠ trace is meaningful, so both filters are retained.
+        vm.addColumnFilter(column: "level", value: .string("trace"), exclude: true)
         XCTAssertEqual(vm.columnFilters.count, 2)
     }
 
