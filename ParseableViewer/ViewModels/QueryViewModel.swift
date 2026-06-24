@@ -487,9 +487,17 @@ final class QueryViewModel {
                 errorMessage = ParseableError.userFriendlyMessage(for: error)
                 if let serverError = error as? ParseableError,
                    case .serverError(_, let msg) = serverError,
-                   let pos = SQLErrorPosition.parse(from: msg) {
+                   let pos = SQLErrorPosition.parse(from: msg),
+                   sqlQuery == sql {
+                    // The server's line/column is relative to the *submitted* SQL.
+                    // Only map it back into the editor when the editor still holds
+                    // that same text — if the user edited the query while it was in
+                    // flight, the position no longer corresponds to what's displayed
+                    // and would underline an unrelated span. (`sqlQuery`'s didSet
+                    // already cleared errorRange on that edit, so leaving it nil here
+                    // keeps the editor unmarked.)
                     errorRange = SQLTokenizer.errorHighlightRange(
-                        line: pos.line, column: pos.column, in: sqlQuery
+                        line: pos.line, column: pos.column, in: sql
                     )
                 }
                 results = []

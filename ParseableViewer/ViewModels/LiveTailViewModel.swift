@@ -164,6 +164,15 @@ final class LiveTailViewModel {
         // include↔exclude stacks both and the AND'd filters match zero rows, so the
         // tail silently empties.
         columnFilters.removeAll { $0.column == column && $0.value == value }
+        if !exclude {
+            // Include filters are AND-combined in rebuildFilteredEntries, but a column
+            // can only equal one value, so two includes on the same column with
+            // different values (e.g. level = info then level = error) can never both
+            // match and the tail would silently empty. A new include therefore
+            // replaces any prior include on that column. (Excludes legitimately stack:
+            // col ≠ a AND col ≠ b is meaningful, so they are left untouched here.)
+            columnFilters.removeAll { $0.column == column && !$0.exclude }
+        }
         columnFilters.append(ColumnFilter(column: column, value: value, exclude: exclude))
         rebuildFilteredEntries()
     }
