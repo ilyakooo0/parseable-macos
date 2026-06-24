@@ -272,6 +272,7 @@ struct LiveTailView: View {
         }
         .onDisappear {
             viewModel.stop()
+            liveTailSortTask?.cancel()
         }
         .onChange(of: appState.selectedStream) { _, _ in
             if viewModel.isRunning {

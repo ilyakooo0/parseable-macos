@@ -79,7 +79,7 @@ final class QueryViewModel {
     var schemaFields: [SchemaField] = []
     /// The stream of the most recent `loadSchema` call, used to drop a stale
     /// in-flight response when the user rapidly switches streams.
-    private var latestSchemaStream: String?
+    private(set) var latestSchemaStream: String?
 
     // Query task for cancellation
     private var queryTask: Task<Void, Never>?

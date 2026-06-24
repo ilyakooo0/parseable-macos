@@ -303,7 +303,12 @@ struct QueryView: View {
         }
         .onAppear {
             if let stream = appState.selectedStream {
-                if viewModel.schemaFields.isEmpty {
+                // Reload the schema when it's missing OR when the loaded schema
+                // belongs to a different stream than the current one — otherwise a
+                // viewModel that survives with another stream's schema would keep
+                // autocomplete pointed at the wrong stream's fields until the next
+                // stream switch.
+                if viewModel.schemaFields.isEmpty || viewModel.latestSchemaStream != stream {
                     Task {
                         await viewModel.loadSchema(client: appState.client, stream: stream)
                     }

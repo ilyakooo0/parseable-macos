@@ -19,7 +19,10 @@ struct ContentView: View {
             ConnectionSheet(connection: appState.editingConnection)
         }
         .alert("Error", isPresented: $appState.showError) {
-            Button("OK") { appState.showError = false }
+            Button("OK") {
+                appState.showError = false
+                appState.errorMessage = nil
+            }
         } message: {
             Text(appState.errorMessage ?? "An unknown error occurred")
         }

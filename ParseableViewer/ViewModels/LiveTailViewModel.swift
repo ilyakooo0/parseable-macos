@@ -420,10 +420,18 @@ final class LiveTailViewModel {
     }
 
     private func poll(client: ParseableClient, stream: String) async {
+        let generation = pollGeneration
         guard !isPolling else { return }
         isPolling = true
-        defer { isPolling = false }
-        let generation = pollGeneration
+        // Only release the guard if this poll is still the current generation. A
+        // stop()/start() during the network await can supersede this poll while a
+        // newer-generation poll is already in flight; clearing isPolling
+        // unconditionally would let a subsequent timer tick start a second poll
+        // that overlaps the newer one, racing writes to lastTimestamp /
+        // consecutiveErrors. start()/clear() reset isPolling on their own
+        // generation bump, so a superseded poll leaving it set can't wedge the
+        // new timer.
+        defer { if generation == pollGeneration { isPolling = false } }
 
         let now = Date()
         // The Parseable server truncates query time-ranges to minute
